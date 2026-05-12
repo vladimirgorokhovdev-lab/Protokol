@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Scale, Mail, Lock, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,7 +42,10 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          // Должен совпадать с Redirect URLs в Supabase (корень + /auth надёжнее явно указать).
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth`,
+          },
         });
         if (error) throw error;
         toast({
@@ -73,21 +75,25 @@ const Auth = () => {
       return;
     }
 
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-
-    if (result.error) {
+    // Нативный OAuth Supabase (не Lovable): на своём домене Lovable Cloud Auth даёт 404 на callback.
+    const redirectTo = `${window.location.origin}/auth${window.location.search}`;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (error) throw error;
+      // Браузер уходит на Google, затем обратно на redirectTo; сессию подхватит AuthProvider.
+    } catch (error: unknown) {
       toast({
         title: "Ошибка",
-        description: result.error instanceof Error ? result.error.message : "Не удалось войти через Google",
+        description: error instanceof Error ? error.message : "Не удалось войти через Google",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    if (result.redirected) return;
-    navigate("/");
   };
 
   return (

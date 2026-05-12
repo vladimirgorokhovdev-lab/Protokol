@@ -13,7 +13,6 @@
     />
     <meta name="author" content="ПротоколЪ" />
 
-    <!-- PWA manifest intentionally disabled while old Service Workers are being cleaned up. -->
     <meta name="theme-color" content="#1B3A5C" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
@@ -26,80 +25,127 @@
       (function () {
         var push = function (message) {
           try {
-            window.__startupErrors.push('[' + new Date().toISOString() + '] ' + message);
-            if (window.__startupErrors.length > 20) window.__startupErrors.shift();
+            window.__startupErrors.push(
+              "[" + new Date().toISOString() + "] " + message,
+            );
+            if (window.__startupErrors.length > 20)
+              window.__startupErrors.shift();
           } catch (e) {}
         };
         var originalError = console.error;
         console.error = function () {
-          try { push(Array.prototype.map.call(arguments, function (x) { return x && x.stack ? x.stack : String(x); }).join(' ')); } catch (e) {}
+          try {
+            push(
+              Array.prototype.map
+                .call(arguments, function (x) {
+                  return x && x.stack ? x.stack : String(x);
+                })
+                .join(" "),
+            );
+          } catch (e) {}
           return originalError.apply(console, arguments);
         };
         var triggerAutoRecover = function (reason) {
           try {
-            var attemptsKey = 'protokol_autorecover_attempts';
-            var attempts = parseInt(sessionStorage.getItem(attemptsKey) || '0', 10) || 0;
+            var attemptsKey = "protokol_autorecover_attempts";
+            var attempts =
+              parseInt(sessionStorage.getItem(attemptsKey) || "0", 10) || 0;
             if (attempts >= 2) return;
             sessionStorage.setItem(attemptsKey, String(attempts + 1));
-            push('auto-recover triggered: ' + reason);
+            push("auto-recover triggered: " + reason);
             if (window.__autoRecoverApp) window.__autoRecoverApp();
           } catch (e) {}
         };
+        var isIgnorableAssetUrl = function (src) {
           try {
-            var s = String(src || '');
-            if (/chrome-extension:|moz-extension:|safari-web-extension:/i.test(s)) return true;
+            var s = String(src || "");
+            if (
+              /chrome-extension:|moz-extension:|safari-web-extension:/i.test(s)
+            )
+              return true;
             if (/[/~]flock\.js(\?|#|$)/i.test(s)) return true;
             return false;
           } catch (e) {
             return false;
           }
         };
-        window.addEventListener('error', function (e) {
-          try {
-            if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
-              var src = e.target.src || e.target.href || 'unknown asset';
-              if (isIgnorableAssetUrl(src)) return;
-              push('asset load error: ' + src);
-              if (/\/src\/main\.tsx|\/assets\/.+\.(js|css|mjs)/.test(String(src))) {
-                triggerAutoRecover('asset-load-error');
+        window.addEventListener(
+          "error",
+          function (e) {
+            try {
+              if (
+                e.target &&
+                (e.target.tagName === "SCRIPT" || e.target.tagName === "LINK")
+              ) {
+                var src = e.target.src || e.target.href || "unknown asset";
+                if (isIgnorableAssetUrl(src)) return;
+                push("asset load error: " + src);
+                if (
+                  /\/src\/main\.tsx|\/assets\/.+\.(js|css|mjs)/.test(
+                    String(src),
+                  )
+                ) {
+                  triggerAutoRecover("asset-load-error");
+                }
+                return;
               }
-              return;
-            }
-          } catch (err) {}
-          push('window.error: ' + e.message + ' @ ' + e.filename + ':' + e.lineno + ':' + e.colno);
-        }, true);
-        window.addEventListener('unhandledrejection', function (e) {
-          var reason = e.reason && e.reason.stack ? e.reason.stack : String(e.reason || '');
-          push('unhandledrejection: ' + reason);
-          if (/Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk \d+ failed/i.test(reason)) {
-            triggerAutoRecover('dynamic-import-failed');
+            } catch (err) {}
+            push(
+              "window.error: " +
+                e.message +
+                " @ " +
+                e.filename +
+                ":" +
+                e.lineno +
+                ":" +
+                e.colno,
+            );
+          },
+          true,
+        );
+        window.addEventListener("unhandledrejection", function (e) {
+          var reason =
+            e.reason && e.reason.stack
+              ? e.reason.stack
+              : String(e.reason || "");
+          push("unhandledrejection: " + reason);
+          if (
+            /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk \d+ failed/i.test(
+              reason,
+            )
+          ) {
+            triggerAutoRecover("dynamic-import-failed");
           }
         });
         setTimeout(function () {
           if (!window.__appStarted) {
-            var root = document.getElementById('root');
+            var root = document.getElementById("root");
             if (!root || root.childElementCount === 0) {
-              triggerAutoRecover('startup-timeout');
+              triggerAutoRecover("startup-timeout");
             }
           }
         }, 8000);
-        window.addEventListener('load', function () {
+        window.addEventListener("load", function () {
           setTimeout(function () {
             if (window.__appStarted) {
-              try { sessionStorage.removeItem('protokol_autorecover_attempts'); } catch (e) {}
+              try {
+                sessionStorage.removeItem("protokol_autorecover_attempts");
+              } catch (e) {}
             }
           }, 3000);
         });
       })();
 
       (function () {
-        var key = 'protokol_sw_cleanup_v7';
+        var key = "protokol_sw_cleanup_v7";
         var cleanupStarted = false;
-        var isResetVisit = window.location.search.indexOf('sw-reset=') !== -1 || window.location.search.indexOf('app-reset=') !== -1;
+        var isResetVisit =
+          window.location.search.indexOf("sw-reset=") !== -1 ||
+          window.location.search.indexOf("app-reset=") !== -1;
         var markDone = function () {
           try {
-            if (sessionStorage.getItem(key) === 'done') return false;
-            sessionStorage.setItem(key, 'done');
+            if (sessionStorage.getItem(key) === "done") return false;
+            sessionStorage.setItem(key, "done");
           } catch (e) {}
           return true;
         };
@@ -107,8 +153,8 @@
           if (!markDone() && !reason) return;
           try {
             var url = new URL(window.location.href);
-            url.searchParams.set('sw-reset', reason || '1');
-            url.searchParams.set('_', Date.now().toString());
+            url.searchParams.set("sw-reset", reason || "1");
+            url.searchParams.set("_", Date.now().toString());
             window.location.href = url.toString();
           } catch (e) {
             window.location.reload();
@@ -118,33 +164,60 @@
           if (cleanupStarted) return;
           cleanupStarted = true;
           var hadWorker = false;
-          var registrations = 'serviceWorker' in navigator
-            ? navigator.serviceWorker.getRegistrations()
-                .then(function (regs) {
-                  hadWorker = !!navigator.serviceWorker.controller || regs.length > 0;
-                  return Promise.all(regs.map(function (reg) { return reg.unregister().catch(function () { return false; }); }));
-                })
-                .catch(function () {})
-            : Promise.resolve();
-          var cacheCleanup = 'caches' in window
-            ? caches.keys().then(function (keys) {
-                return Promise.all(keys.map(function (name) { return caches.delete(name).catch(function () { return false; }); }));
-              }).catch(function () {})
-            : Promise.resolve();
+          var registrations =
+            "serviceWorker" in navigator
+              ? navigator.serviceWorker
+                  .getRegistrations()
+                  .then(function (regs) {
+                    hadWorker =
+                      !!navigator.serviceWorker.controller || regs.length > 0;
+                    return Promise.all(
+                      regs.map(function (reg) {
+                        return reg.unregister().catch(function () {
+                          return false;
+                        });
+                      }),
+                    );
+                  })
+                  .catch(function () {})
+              : Promise.resolve();
+          var cacheCleanup =
+            "caches" in window
+              ? caches
+                  .keys()
+                  .then(function (keys) {
+                    return Promise.all(
+                      keys.map(function (name) {
+                        return caches.delete(name).catch(function () {
+                          return false;
+                        });
+                      }),
+                    );
+                  })
+                  .catch(function () {})
+              : Promise.resolve();
           Promise.all([registrations, cacheCleanup]).then(function () {
-            if (shouldReload && hadWorker && !isResetVisit) reloadOnce(reason || 'old-sw');
+            if (shouldReload && hadWorker && !isResetVisit)
+              reloadOnce(reason || "old-sw");
           });
         };
-        cleanup(true, 'old-sw');
+        cleanup(true, "old-sw");
         window.__recoverApp = function () {
           try {
-            var btn = document.getElementById('startup-recover-link');
-            if (btn) btn.textContent = 'Очищаем…';
+            var btn = document.getElementById("startup-recover-link");
+            if (btn) btn.textContent = "Очищаем…";
           } catch (e) {}
           cleanup(false);
-          setTimeout(function () { reloadOnce('manual'); }, 250);
+          setTimeout(function () {
+            reloadOnce("manual");
+          }, 250);
         };
-        window.__autoRecoverApp = function () { cleanup(false); setTimeout(function () { reloadOnce('auto'); }, 250); };
+        window.__autoRecoverApp = function () {
+          cleanup(false);
+          setTimeout(function () {
+            reloadOnce("auto");
+          }, 250);
+        };
       })();
     </script>
 
