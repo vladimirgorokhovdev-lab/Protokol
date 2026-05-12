@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>ПротоколЪ — Расшифровка аудио для юристов</title>
+    <meta name="description" content="Расшифровка аудио протоколов судебных заседаний, переговоров и совещаний с диаризацией по спикерам и AI-анализом">
+    <meta name="author" content="ПротоколЪ" />
+
+    <!-- PWA manifest intentionally disabled while old Service Workers are being cleaned up. -->
+    <meta name="theme-color" content="#1B3A5C" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ПротоколЪ" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <script>
+      window.__startupErrors = [];
+      (function () {
+        var push = function (message) {
+          try {
+            window.__startupErrors.push('[' + new Date().toISOString() + '] ' + message);
+            if (window.__startupErrors.length > 20) window.__startupErrors.shift();
+          } catch (e) {}
+        };
+        var originalError = console.error;
+        console.error = function () {
+          try { push(Array.prototype.map.call(arguments, function (x) { return x && x.stack ? x.stack : String(x); }).join(' ')); } catch (e) {}
+          return originalError.apply(console, arguments);
+        };
+        // Авто-восстановление при ошибках загрузки (с защитой от циклов: максимум 2 попытки за сессию)
+        var triggerAutoRecover = function (reason) {
+          try {
+            var attemptsKey = 'protokol_autorecover_attempts';
+            var attempts = parseInt(sessionStorage.getItem(attemptsKey) || '0', 10) || 0;
+            if (attempts >= 2) return; // больше не пытаемся, чтобы не зациклиться
+            sessionStorage.setItem(attemptsKey, String(attempts + 1));
+            push('auto-recover triggered: ' + reason);
+            if (window.__autoRecoverApp) window.__autoRecoverApp();
+          } catch (e) {}
+        };
+        // Не из нашего бандла: расширения Chrome, ~flock.js и т.п. — не засоряем отчёт и не путаем диагностику
+        var isIgnorableAssetUrl = function (src) {
+          try {
+            var s = String(src || '');
+            if (/chrome-extension:|moz-extension:|safari-web-extension:/i.test(s)) return true;
+            if (/[/~]flock\.js(\?|#|$)/i.test(s)) return true;
+            return false;
+          } catch (e) {
+            return false;
+          }
+        };
+        window.addEventListener('error', function (e) {
+          try {
+            if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+              var src = e.target.src || e.target.href || 'unknown asset';
+              if (isIgnorableAssetUrl(src)) return;
+              push('asset load error: ' + src);
+              // Если упал основной модуль приложения — чистим SW/кэш и перезагружаем
+              if (/\/src\/main\.tsx|\/assets\/.+\.(js|css|mjs)/.test(String(src))) {
+                triggerAutoRecover('asset-load-error');
+              }
+              return;
+            }
+          } catch (err) {}
+          push('window.error: ' + e.message + ' @ ' + e.filename + ':' + e.lineno + ':' + e.colno);
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          var reason = e.reason && e.reason.stack ? e.reason.stack : String(e.reason || '');
+          push('unhandledrejection: ' + reason);
+          // Динамические импорты Vite/React при стухшем кэше
+          if (/Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk \d+ failed/i.test(reason)) {
+            triggerAutoRecover('dynamic-import-failed');
+          }
+        });
+        // Если приложение не стартовало за 8 сек — пробуем авто-очистку один раз
+        setTimeout(function () {
+          if (!window.__appStarted) {
+            var root = document.getElementById('root');
+            if (!root || root.childElementCount === 0) {
+              triggerAutoRecover('startup-timeout');
+            }
+          }
+        }, 8000);
+        // Сброс счётчика, если приложение успешно запустилось
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (window.__appStarted) {
+              try { sessionStorage.removeItem('protokol_autorecover_attempts'); } catch (e) {}
+            }
+          }, 3000);
+        });
+      })();
+
+      // Emergency cleanup for browsers stuck under an old PWA Service Worker.
+      (function () {
+        var key = 'protokol_sw_cleanup_v7';
+        var cleanupStarted = false;
+        var isResetVisit = window.location.search.indexOf('sw-reset=') !== -1 || window.location.search.indexOf('app-reset=') !== -1;
+        var markDone = function () {
+          try {
+            if (sessionStorage.getItem(key) === 'done') return false;
+            sessionStorage.setItem(key, 'done');
+          } catch (e) {}
+          return true;
+        };
+        var reloadOnce = function (reason) {
+          if (!markDone() && !reason) return;
+          try {
+            var url = new URL(window.location.href);
+            url.searchParams.set('sw-reset', reason || '1');
+            url.searchParams.set('_', Date.now().toString());
+            window.location.href = url.toString();
+          } catch (e) {
+            window.location.reload();
+          }
+        };
+        var cleanup = function (shouldReload, reason) {
+          if (cleanupStarted) return;
+          cleanupStarted = true;
+          var hadWorker = false;
+          var registrations = 'serviceWorker' in navigator
+            ? navigator.serviceWorker.getRegistrations()
+                .then(function (regs) {
+                  hadWorker = !!navigator.serviceWorker.controller || regs.length > 0;
+                  return Promise.all(regs.map(function (reg) { return reg.unregister().catch(function () { return false; }); }));
+                })
+                .catch(function () {})
+            : Promise.resolve();
+          var cacheCleanup = 'caches' in window
+            ? caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (name) { return caches.delete(name).catch(function () { return false; }); }));
+              }).catch(function () {})
+            : Promise.resolve();
+          Promise.all([registrations, cacheCleanup]).then(function () {
+            if (shouldReload && hadWorker && !isResetVisit) reloadOnce(reason || 'old-sw');
+          });
+        };
+        cleanup(true, 'old-sw');
+        window.__recoverApp = function () {
+          try {
+            var btn = document.getElementById('startup-recover-link');
+            if (btn) btn.textContent = 'Очищаем…';
+          } catch (e) {}
+          cleanup(false);
+          setTimeout(function () { reloadOnce('manual'); }, 250);
+        };
+        window.__autoRecoverApp = function () { cleanup(false); setTimeout(function () { reloadOnce('auto'); }, 250); };
+      })();
+    </script>
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ПротоколЪ" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://xn--j1achabchr0f.xn--p1ai/" />
+    <meta property="og:title" content="ПротоколЪ — Расшифровка аудио для юристов" />
+    <meta property="og:description" content="Расшифровка аудио протоколов судебных заседаний, переговоров и совещаний с диаризацией по спикерам и AI-анализом" />
+    <meta property="og:image" content="https://xn--j1achabchr0f.xn--p1ai/og-image.png?v=3" />
+    <meta property="og:image:secure_url" content="https://xn--j1achabchr0f.xn--p1ai/og-image.png?v=3" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ПротоколЪ — расшифровка аудио для юристов" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ПротоколЪ — Расшифровка аудио для юристов" />
+    <meta name="twitter:description" content="Расшифровка аудио протоколов судебных заседаний, переговоров и совещаний с диаризацией по спикерам и AI-анализом" />
+    <meta name="twitter:image" content="https://xn--j1achabchr0f.xn--p1ai/og-image.png?v=3" />
+    <meta name="twitter:image:alt" content="ПротоколЪ — расшифровка аудио для юристов" />
+
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- SEO -->
+    <meta name="yandex-verification" content="7149d3294b13f8a4" />
+    <meta name="google-site-verification" content="KItke5f4fheI2x3L72rYIoTPaDQtZey322y267PEk8s" />
+    <link rel="canonical" href="https://xn--j1achabchr0f.xn--p1ai/" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "ПротоколЪ",
+      "url": "https://xn--j1achabchr0f.xn--p1ai/",
+      "logo": "https://xn--j1achabchr0f.xn--p1ai/icon-512.png",
+      "description": "Сервис расшифровки аудио протоколов судебных заседаний, переговоров и совещаний для юристов с диаризацией спикеров и AI-анализом."
+    }
+    </script>
+
+    <!-- JSON-LD: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "ПротоколЪ",
+      "url": "https://xn--j1achabchr0f.xn--p1ai/",
+      "inLanguage": "ru-RU"
+    }
+    </script>
+
+    <!-- JSON-LD: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ПротоколЪ",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, iOS, Android",
+      "description": "Расшифровка аудио протоколов судебных заседаний, переговоров и совещаний с диаризацией по спикерам и AI-анализом.",
+      "url": "https://xn--j1achabchr0f.xn--p1ai/",
+      "inLanguage": "ru-RU",
+      "offers": {
+        "@type": "Offer",
+        "priceCurrency": "RUB"
+      }
+    }
+    </script>
+</head>
+
+  <body>
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: hsl(42, 30%, 96%);
+        transition: opacity 280ms ease;
+      }
+      .dark #app-splash { background: hsl(190, 55%, 8%); }
+      #app-splash.is-hidden { opacity: 0; pointer-events: none; }
+      #app-splash .spinner {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 3px solid hsla(190, 60%, 12%, 0.15);
+        border-top-color: hsl(190, 75%, 22%);
+        animation: app-splash-spin 0.8s linear infinite;
+      }
+      .dark #app-splash .spinner {
+        border-color: hsla(42, 35%, 92%, 0.2);
+        border-top-color: hsl(40, 60%, 62%);
+      }
+      #app-splash .recovery {
+        display: none;
+        max-width: 560px;
+        padding: 0 24px;
+        text-align: center;
+        color: hsl(190, 55%, 8%);
+        font: 15px/1.45 Nunito, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .dark #app-splash .recovery { color: hsl(42, 35%, 92%); }
+      #app-splash.is-stuck .spinner { display: none; }
+      #app-splash.is-stuck .recovery { display: block; }
+      #app-splash.is-slow .spinner { display: none; }
+      #app-splash.is-slow .recovery { display: block; }
+      #app-splash .recovery button,
+      #app-splash .recovery a.recovery-button {
+        margin: 16px 4px 0;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 18px;
+        background: hsl(40, 60%, 52%);
+        color: hsl(190, 55%, 8%);
+        font: inherit;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      #app-splash .recovery button.secondary {
+        background: transparent;
+        color: inherit;
+        border: 1px solid currentColor;
+      }
+      #app-splash .diagnostics {
+        margin-top: 14px;
+        max-height: 180px;
+        overflow: auto;
+        text-align: left;
+        white-space: pre-wrap;
+        word-break: break-word;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        padding: 10px;
+        opacity: 0.85;
+        font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @keyframes app-splash-spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+    <div id="app-splash" aria-hidden="true">
+      <div class="spinner"></div>
+      <div class="recovery">
+        <div id="startup-message">Загрузка заняла больше обычного. Дождитесь окончания загрузки или обновите страницу.</div>
+        <pre class="diagnostics" id="startup-diagnostics">Диагностика собирается…</pre>
+        <button type="button" class="secondary" id="startup-copy-report">Скопировать отчет</button>
+        <a class="recovery-button" id="startup-recover-link" href="/?app-reset=manual">Очистить и обновить</a>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script>
+      // Match early dark-mode so splash background fits the user's theme
+      try {
+        var t = localStorage.getItem('vite-ui-theme') || localStorage.getItem('theme');
+        // Default to dark theme for new visitors; respect explicit user choice
+        if (t === 'light') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) { document.documentElement.classList.add('dark'); }
+
+      // Hide helper, exposed for React to call after palette sync
+      window.__hideSplash = function () {
+        var el = document.getElementById('app-splash');
+        if (!el) return;
+        el.classList.add('is-hidden');
+        setTimeout(function () { el.remove(); }, 320);
+      };
+      function buildStartupReport() {
+        var sw = 'проверка недоступна';
+        try {
+          sw = navigator.serviceWorker && navigator.serviceWorker.controller
+            ? 'controller: ' + (navigator.serviceWorker.controller.scriptURL || 'есть')
+            : 'controller: нет';
+        } catch (e) {}
+        return [
+          '=== ПротоколЪ — отчет запуска ===',
+          'Время: ' + new Date().toISOString(),
+          'URL: ' + window.location.href,
+          'User-Agent: ' + navigator.userAgent,
+          'Online: ' + navigator.onLine,
+          'Service Worker: ' + sw,
+          'React started: ' + !!window.__appStarted,
+          'Ошибки:',
+          (window.__startupErrors && window.__startupErrors.length ? window.__startupErrors.join('\n') : '—')
+        ].join('\n');
+      }
+      function updateStartupDiagnostics() {
+        var box = document.getElementById('startup-diagnostics');
+        if (box) box.textContent = buildStartupReport();
+      }
+      function setStartupMessage(text) {
+        var msg = document.getElementById('startup-message');
+        if (msg) msg.textContent = text;
+      }
+      window.__copyStartupReport = function () {
+        var report = buildStartupReport();
+        updateStartupDiagnostics();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(report).catch(function () {});
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = report;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      };
+      try {
+        var recoverLink = document.getElementById('startup-recover-link');
+        if (recoverLink) {
+          var recoveryUrl = new URL(window.location.origin + window.location.pathname);
+          recoveryUrl.searchParams.set('app-reset', 'manual');
+          recoveryUrl.searchParams.set('_', Date.now().toString());
+          recoverLink.href = recoveryUrl.toString();
+          recoverLink.addEventListener('click', function (event) {
+            event.preventDefault();
+            if (window.__recoverApp) window.__recoverApp();
+            else window.location.href = recoverLink.href;
+          });
+        }
+        var copyButton = document.getElementById('startup-copy-report');
+        if (copyButton) copyButton.addEventListener('click', function () { window.__copyStartupReport && window.__copyStartupReport(); });
+      } catch (e) {}
+      window.addEventListener('app-startup-error', function () {
+        var el = document.getElementById('app-splash');
+        if (el) el.classList.add('is-stuck');
+        updateStartupDiagnostics();
+      });
+      // Safety fallback: hide only when the app actually rendered.
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (root && root.childElementCount > 0 && window.__hideSplash) window.__hideSplash();
+      }, 1500);
+      setTimeout(function () {
+        var el = document.getElementById('app-splash');
+        var root = document.getElementById('root');
+        if (!el) return;
+        if (!root || root.childElementCount === 0) {
+          el.classList.add('is-slow');
+          setStartupMessage('Сайт загружается дольше обычного. На новом домене первая загрузка может занять больше времени.');
+          updateStartupDiagnostics();
+        } else if (window.__hideSplash) {
+          window.__hideSplash();
+        }
+      }, 6000);
+      setTimeout(function () {
+        var el = document.getElementById('app-splash');
+        var root = document.getElementById('root');
+        if (!el) return;
+        if (!root || root.childElementCount === 0) {
+          el.classList.remove('is-slow');
+          el.classList.add('is-stuck');
+          setStartupMessage('Не удалось запустить приложение. Если обновление не помогает, скопируйте отчёт и пришлите его нам.');
+          updateStartupDiagnostics();
+        } else if (window.__hideSplash) {
+          window.__hideSplash();
+        }
+      }, 30000);
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

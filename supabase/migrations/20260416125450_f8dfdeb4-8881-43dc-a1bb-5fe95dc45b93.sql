@@ -1,0 +1,1 @@
+ALTER TABLE public.transcriptions ADD COLUMN ai_summary jsonb DEFAULT NULL;

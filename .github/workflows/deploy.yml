@@ -1,0 +1,55 @@
+# Деплой статики на VPS при push в main.
+# GitHub → Repo → Settings → Secrets and variables → Actions:
+#
+#   SSH_PRIVATE_KEY — приватный ключ (весь PEM)
+#   DEPLOY_HOST     — IP или домен VPS (например 195.24.71.53)
+#   VITE_SUPABASE_URL
+#   VITE_SUPABASE_PUBLISHABLE_KEY
+#
+# Опционально:
+#   DEPLOY_USER     — по умолчанию root
+#   DEPLOY_PATH     — по умолчанию /var/www/protokol/dist
+#
+# На сервере в authorized_keys должен быть соответствующий публичный ключ.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Rsync to VPS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          USER="${DEPLOY_USER:-root}"
+          REMOTE_PATH="${DEPLOY_PATH:-/var/www/protokol/dist}"
+          rsync -avz --delete -e ssh "dist/" "${USER}@${DEPLOY_HOST}:${REMOTE_PATH}/"

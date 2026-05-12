@@ -1,0 +1,22 @@
+{
+  "name": "ПротоколЪ — Расшифровка аудио для юристов",
+  "short_name": "ПротоколЪ",
+  "description": "Расшифровка аудио протоколов судебных заседаний, переговоров и совещаний с диаризацией по спикерам",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1B3A5C",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

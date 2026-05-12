@@ -1,0 +1,29 @@
+# Сборка фронта на каждый push/PR (без секретов Supabase).
+# Деплой на VPS: см. .github/workflows/deploy.yml (push в main).
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Заглушки для vite build в CI (реальные значения только в Secrets деплоя / .env.production)
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
