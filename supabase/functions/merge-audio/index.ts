@@ -43,7 +43,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify user via JWT
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -69,7 +68,6 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Load transcription, ensure ownership
     const { data: tr, error: trErr } = await admin
       .from("transcriptions")
       .select("id, user_id, file_name, source_audio_paths, audio_path")
@@ -109,7 +107,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify all formats match
     const exts = validPaths.map(extOf);
     const firstExt = exts[0];
     if (!exts.every((e) => e === firstExt)) {
@@ -124,8 +121,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Pre-check existence cheaply (HEAD-equivalent via createSignedUrl) so we
-    // don't waste memory/time downloading if any source is missing.
     const missing: string[] = [];
     const presentPaths: string[] = [];
     for (const path of validPaths) {
