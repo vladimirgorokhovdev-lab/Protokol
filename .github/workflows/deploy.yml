@@ -1,17 +1,3 @@
-# Деплой статики на VPS при push в main.
-# GitHub → Repo → Settings → Secrets and variables → Actions:
-#
-#   SSH_PRIVATE_KEY — приватный ключ (весь PEM)
-#   DEPLOY_HOST     — IP или домен VPS (например 195.24.71.53)
-#   VITE_SUPABASE_URL
-#   VITE_SUPABASE_PUBLISHABLE_KEY
-#
-# Опционально:
-#   DEPLOY_USER     — по умолчанию root
-#   DEPLOY_PATH     — по умолчанию /var/www/protokol/dist
-#
-# На сервере в authorized_keys должен быть соответствующий публичный ключ.
-
 name: Deploy
 
 on:
@@ -36,6 +22,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_AUTH: ${{ secrets.VITE_GOOGLE_AUTH }}
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
