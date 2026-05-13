@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
       // ===== TEAM tier: создаём команду при первой оплате =====
       if (tier === "team") {
-        Проверяем, есть ли уже команда у пользователя как владельца
+        // Проверяем, есть ли уже команда у пользователя как владельца
         const { data: existingMembership } = await supabase
           .from("team_members")
           .select("team_id, role")
