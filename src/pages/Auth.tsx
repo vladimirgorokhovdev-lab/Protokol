@@ -82,7 +82,8 @@ const Auth = () => {
       return;
     }
 
-    const mode = import.meta.env.VITE_GOOGLE_AUTH ?? "lovable";
+    const mode =
+      import.meta.env.VITE_GOOGLE_AUTH === "lovable" ? "lovable" : "supabase";
     setLoading(true);
     try {
       if (mode === "supabase") {
