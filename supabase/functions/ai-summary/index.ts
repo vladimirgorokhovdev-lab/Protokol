@@ -41,8 +41,16 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openaiKey) {
+      throw new Error(
+        "OPENAI_API_KEY is not configured (Edge Function secret)",
+      );
+    }
+    const model =
+      Deno.env.get("OPENAI_SUMMARY_MODEL")?.trim() || "gpt-4o-mini";
+    const apiBase = (Deno.env.get("OPENAI_API_BASE")?.trim() ||
+      "https://api.openai.com/v1").replace(/\/$/, "");
 
     const transcript = segments
       .map((s: any) => {
@@ -61,17 +69,15 @@ serve(async (req) => {
 - Задачи/поручения: конкретные действия, которые нужно выполнить (если есть)
 - Настроение: общий тон обсуждения`;
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
             { role: "system", content: systemPrompt },
             {
               role: "user",
@@ -131,13 +137,12 @@ serve(async (req) => {
               },
             },
           ],
-          tool_choice: {
-            type: "function",
-            function: { name: "analyze_transcription" },
-          },
-        }),
-      },
-    );
+        tool_choice: {
+          type: "function",
+          function: { name: "analyze_transcription" },
+        },
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -161,7 +166,7 @@ serve(async (req) => {
         );
       }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      console.error("OpenAI API error:", response.status, t);
       return new Response(JSON.stringify({ error: "Ошибка AI-сервиса" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
