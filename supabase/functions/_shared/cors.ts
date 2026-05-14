@@ -39,11 +39,7 @@ export function corsHeadersForRequest(req: Request, opts: CorsOptions = {}) {
   // No SITE_URL / SUPABASE_ALLOWED_ORIGINS yet → allow any origin. Calls still
   // require Authorization (Bearer); this avoids a dead-on-arrival CORS setup.
   const allowOrigin =
-    allowedOrigins.length === 0
-      ? "*"
-      : isAllowed
-        ? normalizedOrigin
-        : "null";
+    allowedOrigins.length === 0 ? "*" : isAllowed ? normalizedOrigin : "null";
 
   return {
     "Access-Control-Allow-Origin": allowOrigin,

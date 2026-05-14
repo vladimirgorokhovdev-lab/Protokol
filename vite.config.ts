@@ -2,10 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import legacy from "@vitejs/plugin-legacy";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   define: {
     __BUILD_VERSION__: JSON.stringify(new Date().toISOString()),
   },
@@ -23,12 +22,11 @@ export default defineConfig(({ mode }) => ({
       modernPolyfills: true,
       renderLegacyChunks: true,
     }),
-    mode === "development" && componentTagger(),
-  ].filter(Boolean),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
-}));
+});

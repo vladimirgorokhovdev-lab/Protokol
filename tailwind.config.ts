@@ -14,9 +14,18 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Nunito", "system-ui", "sans-serif"],
-        serif: ["Nunito", "system-ui", "sans-serif"],
-        playfair: ["Nunito", "system-ui", "sans-serif"],
+        sans: [
+          '"Source Sans 3"',
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+          "Apple Color Emoji",
+          "Segoe UI Emoji",
+          "Segoe UI Symbol",
+          "Noto Color Emoji",
+        ],
+        serif: ['"Playfair Display"', "Georgia", "Cambria", "Times New Roman", "serif"],
+        playfair: ['"Playfair Display"', "Georgia", "Cambria", "Times New Roman", "serif"],
       },
       colors: {
         gold: {

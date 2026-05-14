@@ -47,10 +47,10 @@ serve(async (req) => {
         "OPENAI_API_KEY is not configured (Edge Function secret)",
       );
     }
-    const model =
-      Deno.env.get("OPENAI_SUMMARY_MODEL")?.trim() || "gpt-4o-mini";
-    const apiBase = (Deno.env.get("OPENAI_API_BASE")?.trim() ||
-      "https://api.openai.com/v1").replace(/\/$/, "");
+    const model = Deno.env.get("OPENAI_SUMMARY_MODEL")?.trim() || "gpt-4o-mini";
+    const apiBase = (
+      Deno.env.get("OPENAI_API_BASE")?.trim() || "https://api.openai.com/v1"
+    ).replace(/\/$/, "");
 
     const transcript = segments
       .map((s: any) => {
@@ -78,65 +78,59 @@ serve(async (req) => {
       body: JSON.stringify({
         model,
         messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Проанализируй следующую расшифровку:\n\n${transcript}`,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "analyze_transcription",
-                description: "Вернуть структурированный анализ расшифровки",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    summary: {
-                      type: "string",
-                      description:
-                        "Краткое резюме содержания (3-5 предложений)",
-                    },
-                    keyPoints: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "Ключевые моменты обсуждения (до 10)",
-                    },
-                    actionItems: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          task: { type: "string" },
-                          assignee: { type: "string" },
-                        },
-                        required: ["task"],
-                      },
-                      description: "Задачи и поручения",
-                    },
-                    sentiment: {
-                      type: "string",
-                      enum: [
-                        "neutral",
-                        "positive",
-                        "negative",
-                        "confrontational",
-                        "cooperative",
-                      ],
-                      description: "Общий тон обсуждения",
-                    },
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `Проанализируй следующую расшифровку:\n\n${transcript}`,
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "analyze_transcription",
+              description: "Вернуть структурированный анализ расшифровки",
+              parameters: {
+                type: "object",
+                properties: {
+                  summary: {
+                    type: "string",
+                    description: "Краткое резюме содержания (3-5 предложений)",
                   },
-                  required: [
-                    "summary",
-                    "keyPoints",
-                    "actionItems",
-                    "sentiment",
-                  ],
+                  keyPoints: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Ключевые моменты обсуждения (до 10)",
+                  },
+                  actionItems: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        task: { type: "string" },
+                        assignee: { type: "string" },
+                      },
+                      required: ["task"],
+                    },
+                    description: "Задачи и поручения",
+                  },
+                  sentiment: {
+                    type: "string",
+                    enum: [
+                      "neutral",
+                      "positive",
+                      "negative",
+                      "confrontational",
+                      "cooperative",
+                    ],
+                    description: "Общий тон обсуждения",
+                  },
                 },
+                required: ["summary", "keyPoints", "actionItems", "sentiment"],
               },
             },
-          ],
+          },
+        ],
         tool_choice: {
           type: "function",
           function: { name: "analyze_transcription" },
