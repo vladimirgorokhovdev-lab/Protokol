@@ -41,7 +41,6 @@ const Feedback = () => {
   const [filter, setFilter] = useState("all");
   const [userCount, setUserCount] = useState<number | null>(null);
 
-  // Mark all feedback as read when viewing this page
   useEffect(() => {
     markRead();
     supabase.rpc("get_auth_user_count").then(({ data }) => {

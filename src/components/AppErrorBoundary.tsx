@@ -31,7 +31,6 @@ type State = {
 const MAX_CONSOLE_ERRORS = 20;
 const consoleErrorBuffer: string[] = [];
 
-// Install global console.error capture as early as possible.
 if (typeof window !== "undefined" && !(window as any).__consoleErrorPatched) {
   (window as any).__consoleErrorPatched = true;
   const origError = console.error.bind(console);
@@ -212,7 +211,6 @@ export class AppErrorBoundary extends Component<Props, State> {
     try {
       await navigator.clipboard.writeText(report);
     } catch {
-      // Fallback
       const ta = document.createElement("textarea");
       ta.value = report;
       ta.style.position = "fixed";

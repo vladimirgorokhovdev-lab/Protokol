@@ -1,7 +1,3 @@
-// PWA отключена. Новые Service Worker больше не регистрируем:
-// повторная регистрация аварийного worker может зациклить перезагрузку
-// во встроенных браузерах (например, Telegram). Оставляем только мягкую
-// очистку уже существующих регистраций и кэшей.
 export function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 

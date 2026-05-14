@@ -18,7 +18,6 @@ const ConsentBanner = forwardRef<HTMLDivElement>((_, ref) => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        // небольшая задержка, чтобы не перекрывать первый кадр
         const t = setTimeout(() => setOpen(true), 600);
         return () => clearTimeout(t);
       }

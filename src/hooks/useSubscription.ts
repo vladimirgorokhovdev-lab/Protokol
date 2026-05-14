@@ -50,14 +50,12 @@ export function useSubscription(): SubscriptionInfo & {
     }
 
     try {
-      // Fetch subscription
       const { data: sub } = await supabase
         .from("subscriptions")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      // Fetch usage
       const { data: usage } = await supabase
         .from("transcription_usage")
         .select("*")
@@ -68,12 +66,10 @@ export function useSubscription(): SubscriptionInfo & {
       const status = sub?.status || "active";
       const totalUsed = usage?.total_count || 0;
       
-      // Reset monthly if new month
       const currentMonth = new Date().toISOString().slice(0, 7);
       const usageMonth = usage?.month_start?.slice(0, 7);
       const monthlyUsed = usageMonth === currentMonth ? (usage?.monthly_count || 0) : 0;
 
-      // Check can transcribe
       const { data: canTranscribe } = await supabase.rpc("can_user_transcribe", {
         p_user_id: user.id,
       });

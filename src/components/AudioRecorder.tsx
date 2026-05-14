@@ -58,7 +58,6 @@ const AudioRecorder = ({ onClose, onRecordingComplete }: AudioRecorderProps) => 
       });
       streamRef.current = stream;
 
-      // Android Chrome: webm/opus; iOS Safari: mp4/aac; Firefox: ogg
       const candidates = [
         "audio/webm;codecs=opus",
         "audio/webm",
@@ -79,7 +78,6 @@ const AudioRecorder = ({ onClose, onRecordingComplete }: AudioRecorderProps) => 
           ? new MediaRecorder(stream, { mimeType })
           : new MediaRecorder(stream);
       } catch {
-        // На некоторых устройствах конструктор падает с указанным mimeType — пробуем без него
         mediaRecorder = new MediaRecorder(stream);
       }
       mediaRecorderRef.current = mediaRecorder;
@@ -121,8 +119,6 @@ const AudioRecorder = ({ onClose, onRecordingComplete }: AudioRecorderProps) => 
         );
       };
 
-      // Периодический сбор чанков нужен для Android Chrome — иначе ondataavailable
-      // может не сработать до stop() и запись окажется пустой.
       try {
         mediaRecorder.start(1000);
       } catch {

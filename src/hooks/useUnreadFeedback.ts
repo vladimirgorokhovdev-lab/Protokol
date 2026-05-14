@@ -31,7 +31,6 @@ export function useUnreadFeedback() {
     fetchCount();
   }, [fetchCount]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
 

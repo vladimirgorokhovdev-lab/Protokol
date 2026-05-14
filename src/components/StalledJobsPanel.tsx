@@ -20,7 +20,6 @@ export function StalledJobsPanel() {
 
   useEffect(() => {
     refresh();
-    // Realtime: react to job changes (a stuck job may finish, or a new one may fail)
     const channel = supabase
       .channel("stalled-jobs")
       .on(
@@ -29,7 +28,6 @@ export function StalledJobsPanel() {
         () => refresh(),
       )
       .subscribe();
-    // Refresh on a slow timer too — to "promote" jobs into the stuck list as they age
     const timer = window.setInterval(refresh, 60_000);
     return () => {
       supabase.removeChannel(channel);

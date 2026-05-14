@@ -32,6 +32,7 @@ import { useUnreadFeedback } from "@/hooks/useUnreadFeedback";
 import { useUnreadContact } from "@/hooks/useUnreadContact";
 import { useApprovalStatus } from "@/hooks/useApprovalStatus";
 import { resetCacheAndReload } from "@/lib/cacheReset";
+import { probeMediaDuration } from "@/lib/probeMediaDuration";
 
 import AudioDropZone from "@/components/AudioDropZone";
 
@@ -113,38 +114,10 @@ const Index = () => {
     return true;
   }, [quotaBlocked, navigate]);
 
-  const probeDuration = useCallback((file: File): Promise<number> => {
-    return new Promise((resolve) => {
-      const url = URL.createObjectURL(file);
-      const isVideo = file.type.startsWith("video/");
-      const el = document.createElement(
-        isVideo ? "video" : "audio",
-      ) as HTMLMediaElement;
-      const cleanup = () => URL.revokeObjectURL(url);
-      const timeout = setTimeout(() => {
-        cleanup();
-        resolve(0);
-      }, 8000);
-      el.preload = "metadata";
-      el.onloadedmetadata = () => {
-        clearTimeout(timeout);
-        const d = isFinite(el.duration) ? el.duration : 0;
-        cleanup();
-        resolve(d);
-      };
-      el.onerror = () => {
-        clearTimeout(timeout);
-        cleanup();
-        resolve(0);
-      };
-      el.src = url;
-    });
-  }, []);
-
   const checkFreeTierDuration = useCallback(
     async (files: File[]): Promise<boolean> => {
       if (!isFreeTier) return true;
-      const durations = await Promise.all(files.map(probeDuration));
+      const durations = await Promise.all(files.map(probeMediaDuration));
       const idx = durations.findIndex((d) => d > FREE_MAX_DURATION_SEC);
       if (idx >= 0) {
         toast.error(`Файл «${files[idx].name}» длиннее 2 часов`, {
@@ -156,7 +129,7 @@ const Index = () => {
       }
       return true;
     },
-    [isFreeTier, probeDuration, navigate],
+    [isFreeTier, navigate],
   );
 
   const handleAddFiles = useCallback(

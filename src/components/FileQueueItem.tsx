@@ -717,6 +717,8 @@ const FileQueueItem = ({
             uploadProgress={item.uploadProgress}
             statusMessage={item.statusMessage}
             status={item.status}
+            mediaDurationSec={item.mediaDurationSec}
+            uploadCompletedAtMs={item.uploadCompletedAtMs}
           />
         </div>
       )}
@@ -920,7 +922,6 @@ const FileQueueItem = ({
         </div>
       )}
 
-      {/* Floating mini-player when main player scrolled out of view */}
       <AnimatePresence>
         {!playerVisible && isPlaying && expanded && (
           <motion.div

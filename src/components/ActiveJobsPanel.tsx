@@ -12,17 +12,10 @@ interface ActiveJob {
   updated_at: string;
 }
 
-/**
- * Shows currently-active transcription jobs (queued/processing) directly from the DB.
- * Useful for jobs started elsewhere (e.g. via "Retry" on the History page) — they
- * don't appear in the local file queue but the user still wants to see progress.
- */
 export function ActiveJobsPanel() {
   const [jobs, setJobs] = useState<ActiveJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  // Locally-cancelled job ids — filter them out of any subsequent refresh
-  // to prevent a brief "resurrection" if a background write lands after our cancel.
   const cancelledIdsRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
@@ -64,7 +57,6 @@ export function ActiveJobsPanel() {
 
   const handleCancel = async (job: ActiveJob) => {
     setCancellingId(job.id);
-    // Optimistically hide and blacklist — server cancellation is async.
     cancelledIdsRef.current.add(job.id);
     setJobs((prev) => prev.filter((j) => j.id !== job.id));
     try {
@@ -73,7 +65,6 @@ export function ActiveJobsPanel() {
         .update({ status: "cancelled", status_message: "Отменено пользователем" })
         .eq("id", job.id);
       if (error) {
-        // Roll back blacklist so the job reappears
         cancelledIdsRef.current.delete(job.id);
         await refresh();
         toast({ title: "Не удалось отменить", description: error.message, variant: "destructive" });

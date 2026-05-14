@@ -24,7 +24,7 @@ export async function resetCacheAndReload() {
       localStorage.removeItem("vite:cache");
       sessionStorage.removeItem("vite:cache");
     } catch {
-      // ignore storage cleanup errors
+      // ignore storage
     }
 
     toast.success("Кэш очищен. Перезагружаем…");

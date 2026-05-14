@@ -174,7 +174,6 @@ const AudioUploader = ({ onFileSelect, isProcessing }: AudioUploaderProps) => {
             exit={{ opacity: 0, y: -10 }}
             className="rounded-xl bg-card border border-border overflow-hidden"
           >
-            {/* File info row */}
             <div className="flex items-center gap-4 p-4 pb-2">
               <div className="w-10 h-10 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
                 <FileAudio className="w-5 h-5 text-gold-dark" />
@@ -196,10 +195,8 @@ const AudioUploader = ({ onFileSelect, isProcessing }: AudioUploaderProps) => {
               )}
             </div>
 
-            {/* Audio player */}
             {audioUrl && (
               <div className="px-4 pb-4 pt-1">
-                {/* Progress bar */}
                 <div
                   ref={progressRef}
                   onClick={handleProgressClick}
@@ -215,7 +212,6 @@ const AudioUploader = ({ onFileSelect, isProcessing }: AudioUploaderProps) => {
                   />
                 </div>
 
-                {/* Controls */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground font-mono w-16">
                     {formatTime(currentTime)}

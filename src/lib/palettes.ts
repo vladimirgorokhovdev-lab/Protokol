@@ -448,7 +448,6 @@ let fadeTimeout: number | null = null;
 
 function triggerPaletteFade() {
   if (typeof document === "undefined") return;
-  // Skip if user prefers reduced motion
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
   if (!fadeOverlay) {
@@ -459,7 +458,6 @@ function triggerPaletteFade() {
     document.body.appendChild(fadeOverlay);
   }
 
-  // Restart animation
   if (fadeTimeout) window.clearTimeout(fadeTimeout);
   fadeOverlay.style.opacity = "0.35";
   fadeTimeout = window.setTimeout(() => {

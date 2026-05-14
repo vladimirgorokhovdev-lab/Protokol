@@ -14,16 +14,6 @@ export async function loadReplacementRules(): Promise<Rule[]> {
   return data || [];
 }
 
-// Нормализация символов для устойчивого поиска:
-// - NFC unicode-нормализация
-// - все виды пробелов (NBSP, узкие, табы) → обычный пробел
-// - схлопывание подряд идущих пробелов
-// - все виды дефисов/тире → "-"
-// - типографские кавычки/апострофы → обычные
-// - удаление zero-width символов
-// - lowercase, ё → е
-// Возвращает нормализованную строку И массив, отображающий каждый
-// индекс нормализованной строки обратно в индекс исходной строки.
 function normalizeWithMap(input: string): { norm: string; map: number[] } {
   const src = input.normalize("NFC");
   let norm = "";
@@ -32,11 +22,9 @@ function normalizeWithMap(input: string): { norm: string; map: number[] } {
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
     const code = ch.charCodeAt(0);
-    // zero-width / BOM / soft hyphen — пропускаем
     if (code === 0x200b || code === 0x200c || code === 0x200d || code === 0xfeff || code === 0x00ad) {
       continue;
     }
-    // пробельные символы (включая NBSP 0xA0, узкие 0x202F/0x2009 и т.п.)
     const isSpace = ch === " " || ch === "\t" || ch === "\n" || ch === "\r" ||
       code === 0x00a0 || code === 0x2007 || code === 0x2009 || code === 0x202f || code === 0x200a;
     if (isSpace) {
@@ -48,11 +36,9 @@ function normalizeWithMap(input: string): { norm: string; map: number[] } {
     }
     prevWasSpace = false;
     let out = ch;
-    // дефисы/тире
     if (ch === "\u2010" || ch === "\u2011" || ch === "\u2012" || ch === "\u2013" || ch === "\u2014" || ch === "\u2212") {
       out = "-";
     }
-    // кавычки/апострофы
     else if (ch === "\u2018" || ch === "\u2019" || ch === "\u201A" || ch === "\u2032" || ch === "`") {
       out = "'";
     }
@@ -102,7 +88,6 @@ export function applyReplacements(
   segments: TranscriptSegment[],
   accepted: ReplacementMatch[]
 ): TranscriptSegment[] {
-  // Group by segment and sort by position descending (to preserve positions)
   const bySegment = new Map<number, ReplacementMatch[]>();
   for (const m of accepted) {
     const arr = bySegment.get(m.segmentIndex) || [];
@@ -114,7 +99,6 @@ export function applyReplacements(
     const segMatches = bySegment.get(idx);
     if (!segMatches) return seg;
 
-    // Sort descending by position to replace from end
     const sorted = [...segMatches].sort((a, b) => b.startPos - a.startPos);
     let text = seg.text;
     for (const m of sorted) {

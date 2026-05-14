@@ -213,6 +213,10 @@ async function processJob(
     console.log(`[job ${jobId}] streaming ${sizeMb} MB to ElevenLabs`);
     await updateJob({ status_message: `Расшифровка (${sizeMb} МБ)...` });
 
+    /** ElevenLabs can run long; DB cron used to mark "stalled" if row stale — bump updated_at */
+    const FETCH_TIMEOUT_MS = 45 * 60 * 1000;
+    const HEARTBEAT_MS = 2 * 60 * 1000;
+
     const fileName = audioPath.split("/").pop() || "audio";
     const boundary = `----LexScribeBoundary${crypto.randomUUID().replace(/-/g, "")}`;
     const enc = new TextEncoder();
@@ -259,10 +263,21 @@ async function processJob(
     });
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20 * 60 * 1000);
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     const cancelPoll = setInterval(async () => {
       if (await isCancelled()) controller.abort();
     }, 5000);
+
+    const heartbeat = setInterval(async () => {
+      try {
+        if (await isCancelled()) return;
+        await updateJob({
+          status_message: `Расшифровка (${sizeMb} МБ)...`,
+        });
+      } catch (e) {
+        console.warn(`[job ${jobId}] heartbeat:`, e);
+      }
+    }, HEARTBEAT_MS);
 
     let response: Response;
     try {
@@ -281,13 +296,14 @@ async function processJob(
       if ((err as Error).name === "AbortError") {
         if (await isCancelled()) throw new CancelledError();
         throw new Error(
-          "Таймаут запроса к ElevenLabs (20 мин). Файл слишком большой.",
+          `Таймаут запроса к ElevenLabs (${Math.round(FETCH_TIMEOUT_MS / 60000)} мин). Файл очень длинный — разбейте на части или сожмите MP3.`,
         );
       }
       throw new Error(`Сетевая ошибка ElevenLabs: ${(err as Error).message}`);
     } finally {
       clearTimeout(timeoutId);
       clearInterval(cancelPoll);
+      clearInterval(heartbeat);
     }
 
     console.log(`[job ${jobId}] ElevenLabs responded with ${response.status}`);
@@ -438,10 +454,8 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Service-role client for writes that bypass RLS (we still scope by user_id)
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // Create job row
   const { data: job, error: jobErr } = await admin
     .from("transcription_jobs")
     .insert({
@@ -460,8 +474,6 @@ Deno.serve(async (req) => {
     return jsonResponse(500, { error: "Failed to create job" }, corsHeaders);
   }
 
-  // Background processing
-  // @ts-ignore - EdgeRuntime is provided by Deno Deploy
   EdgeRuntime.waitUntil(
     processJob(admin, job.id, audioPath, numSpeakers, ELEVENLABS_API_KEY),
   );

@@ -1,11 +1,7 @@
-// Список последних 10 НОВЫХ функций (не багфиксы).
-// Самое свежее — сверху. Обновляйте при добавлении новых возможностей.
-// При изменении массива увеличьте VERSION, чтобы пользователи увидели бейдж "Новое".
-
 export const WHATS_NEW_VERSION = "2026-05-07";
 
 export interface WhatsNewItem {
-  date: string;        // ISO YYYY-MM-DD
+  date: string;
   title: string;
   description: string;
 }

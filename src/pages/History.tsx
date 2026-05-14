@@ -1308,7 +1308,6 @@ const History = () => {
           </div>
         ) : selectedId ? (
           <div>
-            {/* Folder + tags meta */}
             {selectedRecord && (
               <div className="mb-4 flex flex-wrap items-center gap-2 p-3 rounded-xl bg-card/50 border border-border">
                 <Popover>

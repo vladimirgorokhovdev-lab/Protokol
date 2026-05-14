@@ -175,7 +175,6 @@ export default function Profile() {
           </p>
         </div>
 
-        {/* Имя */}
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="font-playfair text-lg flex items-center gap-2">
@@ -212,7 +211,6 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Email */}
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="font-playfair text-lg flex items-center gap-2">
@@ -249,7 +247,6 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Пароль */}
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="font-playfair text-lg flex items-center gap-2">

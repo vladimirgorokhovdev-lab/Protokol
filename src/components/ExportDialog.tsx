@@ -79,7 +79,6 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
           </button>
         </div>
 
-        {/* Template selection */}
         <p className="text-sm text-muted-foreground mb-3">Выберите шаблон:</p>
         <div className="space-y-2 mb-4">
           {templates.map((t) => (
@@ -101,7 +100,6 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
           ))}
         </div>
 
-        {/* AI Summary toggle */}
         {aiSummary && (
           <label className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-gold/30 transition-colors cursor-pointer mb-4">
             <input
@@ -117,7 +115,6 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
           </label>
         )}
 
-        {/* Timecodes toggle */}
         <label className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-gold/30 transition-colors cursor-pointer mb-4">
           <input
             type="checkbox"
@@ -128,7 +125,6 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
           <span className="text-sm text-foreground">Показывать таймкоды в документе</span>
         </label>
 
-        {/* Export buttons */}
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => handleExport("docx")}
@@ -148,7 +144,6 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
           </button>
         </div>
 
-        {/* Separate AI Summary export */}
         {aiSummary && (
           <div className="border-t border-border pt-4">
             <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">

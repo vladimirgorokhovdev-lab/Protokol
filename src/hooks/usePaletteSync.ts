@@ -65,8 +65,6 @@ export function usePaletteSync() {
         : null;
       const localPalette = getStoredPalette();
 
-      // Push local choice up if guest actively changed palette OR DB has only the default
-      // and local differs from default
       const shouldPushLocal =
         guestChangedRef.current ||
         (dbPalette === DEFAULT_PALETTE && localPalette !== DEFAULT_PALETTE);

@@ -23,7 +23,6 @@ export default function TeamJoin() {
       return;
     }
     if (!user) {
-      // Сохраним намерение и отправим на /auth
       sessionStorage.setItem("pending_team_invite", token);
       navigate(`/auth?redirect=/team/join?token=${encodeURIComponent(token)}`);
     }

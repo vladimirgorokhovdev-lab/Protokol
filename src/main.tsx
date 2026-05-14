@@ -5,7 +5,6 @@ import { registerServiceWorker } from "./lib/registerSW";
 import { applyPalette, getStoredPalette } from "./lib/palettes";
 
 try {
-  // Apply saved palette before initial render to avoid color flash
   applyPalette(getStoredPalette());
 
   registerServiceWorker();

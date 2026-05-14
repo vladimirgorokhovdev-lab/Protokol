@@ -5,6 +5,7 @@ import {
   QuotaExceededError,
 } from "@/lib/transcriptionService";
 import { supabase } from "@/integrations/supabase/client";
+import { probeMediaDuration } from "@/lib/probeMediaDuration";
 import {
   saveTranscription,
   updateSpeakerNames,
@@ -49,6 +50,10 @@ export interface QueueItem {
   error: string | null;
   uploadProgress: number;
   dbId: string | null;
+  /** Длительность записи (сек), для оценки прогресса после загрузки. */
+  mediaDurationSec?: number | null;
+  /** Момент завершения загрузки в Storage (Date.now). */
+  uploadCompletedAtMs?: number | null;
 }
 
 export function useTranscriptionQueue() {
@@ -68,10 +73,12 @@ export function useTranscriptionQueue() {
       const controller = new AbortController();
       abortControllers.current.set(id, controller);
 
+      const durationSec = await probeMediaDuration(file);
       updateItem(id, {
         status: "processing",
         statusMessage: "Загрузка в хранилище...",
         uploadProgress: 0,
+        mediaDurationSec: durationSec > 0 ? durationSec : null,
       });
 
       try {
@@ -79,7 +86,10 @@ export function useTranscriptionQueue() {
           onStatus: (message: string) =>
             updateItem(id, { statusMessage: message }),
           onUploadProgress: (progress: number) => {
-            updateItem(id, { uploadProgress: progress });
+            updateItem(id, {
+              uploadProgress: progress,
+              ...(progress >= 100 ? { uploadCompletedAtMs: Date.now() } : {}),
+            });
           },
           onJobCreated: (jobId: string) => {
             jobIdsRef.current.set(id, jobId);
@@ -210,9 +220,6 @@ export function useTranscriptionQueue() {
     [processItem],
   );
 
-  // Auto-recovery on mount: rescue jobs that finished on the server but were
-  // never saved to history (e.g. user closed tab during save), and reattach
-  // to in-progress jobs so refreshing the page doesn't lose progress.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -255,6 +262,8 @@ export function useTranscriptionQueue() {
           error: null,
           uploadProgress: 100,
           dbId: null,
+          mediaDurationSec: null,
+          uploadCompletedAtMs: Date.now(),
         };
         setItems((prev) => [...prev, placeholder]);
 
@@ -346,7 +355,6 @@ export function useTranscriptionQueue() {
     const controller = abortControllers.current.get(id);
     if (controller) controller.abort();
 
-    // Tell the edge function to stop by writing cancelled status to the job row.
     const jobId = jobIdsRef.current.get(id);
     if (jobId) {
       supabase
@@ -423,7 +431,6 @@ export function useTranscriptionQueue() {
 
         const updatedNames = { ...item.speakerNames, [originalName]: newName };
 
-        // Persist to DB if saved
         if (item.dbId) {
           updateSpeakerNames(item.dbId, updatedNames).catch(console.error);
         }

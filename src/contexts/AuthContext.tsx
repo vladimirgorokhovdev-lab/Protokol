@@ -28,7 +28,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-      // Логируем вход (только при реальном событии входа)
       if (event === "SIGNED_IN" && session?.user) {
         const key = `last_login_logged_${session.user.id}`;
         const today = new Date().toISOString().slice(0, 10);

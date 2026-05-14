@@ -15,32 +15,24 @@ import { usePaletteSync } from "@/hooks/usePaletteSync";
 export function PaletteSwitcher() {
   const { current, setPalette } = usePaletteSync();
 
-  // Keep a ref of the latest committed palette so hover-restore logic
-  // never reads a stale value from a closure (which caused the picked
-  // palette to be reverted right after selection).
   const currentRef = useRef<PaletteId>(current);
   useEffect(() => {
     currentRef.current = current;
   }, [current]);
 
   const handleSelect = (id: PaletteId) => {
-    // Update ref synchronously so the imminent menu-close handler
-    // restores to the freshly chosen palette, not the previous one.
     currentRef.current = id;
     void setPalette(id);
   };
 
   const handleHover = (id: PaletteId) => {
-    // Temporarily preview without persisting
     applyPalette(id);
   };
 
   const handleLeave = () => {
-    // Restore the saved/active palette
     applyPalette(currentRef.current);
   };
 
-  // Restore current palette when the menu closes (covers Esc / outside click)
   const handleOpenChange = (open: boolean) => {
     if (!open) applyPalette(currentRef.current);
   };

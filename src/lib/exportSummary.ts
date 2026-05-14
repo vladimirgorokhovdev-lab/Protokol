@@ -12,7 +12,6 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
   const children: Paragraph[] = [];
   const date = new Date().toLocaleDateString("ru-RU");
 
-  // Title
   children.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 120 },
@@ -24,14 +23,12 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
     children: [new TextRun({ text: `Дата формирования: ${date}`, size: 20, color: "666666", font: "Times New Roman" })],
   }));
 
-  // Divider
   children.push(new Paragraph({
     spacing: { before: 100, after: 200 },
     border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "1B3A5C", space: 1 } },
     children: [],
   }));
 
-  // Sentiment
   children.push(new Paragraph({
     spacing: { after: 160 },
     children: [
@@ -40,7 +37,6 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
     ],
   }));
 
-  // Summary
   children.push(new Paragraph({
     spacing: { after: 80 },
     children: [new TextRun({ text: "РЕЗЮМЕ", bold: true, size: 24, font: "Times New Roman", color: "1B3A5C" })],
@@ -52,7 +48,6 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
     children: [new TextRun({ text: ai.summary, size: 22, font: "Times New Roman" })],
   }));
 
-  // Key Points
   if (ai.keyPoints.length) {
     children.push(new Paragraph({
       spacing: { before: 100, after: 80 },
@@ -68,7 +63,6 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
   }
 
 
-  // Action Items
   if (ai.actionItems.length) {
     children.push(new Paragraph({
       spacing: { before: 160, after: 80 },
@@ -86,7 +80,6 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
     }
   }
 
-  // Footer
   children.push(new Paragraph({
     spacing: { before: 300 },
     border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "1B3A5C", space: 1 } },
