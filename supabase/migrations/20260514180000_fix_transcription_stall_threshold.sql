@@ -1,5 +1,4 @@
--- Long ElevenLabs runs do not UPDATE the job row, so the old 8-minute window
--- falsely killed healthy jobs. Align with long STT + optional edge slowness.
+
 CREATE OR REPLACE FUNCTION public.mark_stalled_transcription_jobs()
 RETURNS void
 LANGUAGE plpgsql
@@ -14,6 +13,19 @@ BEGIN
     status_message = 'Прервано (ожидание)',
     updated_at = now()
   WHERE status IN ('queued'::transcription_job_status, 'processing'::transcription_job_status)
-    AND updated_at < now() - INTERVAL '50 minutes';
+    AND updated_at < now() - INTERVAL '90 minutes';
 END;
 $$;
+
+DO $$
+BEGIN
+  PERFORM cron.unschedule('mark-stalled-transcription-jobs');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
+
+SELECT cron.schedule(
+  'mark-stalled-transcription-jobs',
+  '* * * * *',
+  $$SELECT public.mark_stalled_transcription_jobs();$$
+);

@@ -187,14 +187,30 @@ async function processJob(
     if (await isCancelled()) throw new CancelledError();
   };
 
+  let lastStatusMessage = "Обработка...";
+  const touchJob = async (message: string) => {
+    lastStatusMessage = message;
+    await updateJob({ status_message: message });
+  };
+
+  const HEARTBEAT_MS = 45 * 1000;
+  const heartbeat = setInterval(async () => {
+    try {
+      if (await isCancelled()) return;
+      await updateJob({ status_message: lastStatusMessage });
+    } catch (e) {
+      console.warn(`[job ${jobId}] heartbeat:`, e);
+    }
+  }, HEARTBEAT_MS);
+
   try {
     await checkpoint();
-    await updateJob({
-      status: "processing",
-      status_message: /^https?:\/\//i.test(audioPath)
+    await touchJob(
+      /^https?:\/\//i.test(audioPath)
         ? "Парсинг ссылки..."
         : "Подготовка файла...",
-    });
+    );
+    await updateJob({ status: "processing" });
 
     const signedUrl = (
       await admin.storage.from("audio-files").createSignedUrl(audioPath, 3600)
@@ -211,11 +227,9 @@ async function processJob(
       ? (Number(contentLength) / 1024 / 1024).toFixed(2)
       : "?";
     console.log(`[job ${jobId}] streaming ${sizeMb} MB to ElevenLabs`);
-    await updateJob({ status_message: `Расшифровка (${sizeMb} МБ)...` });
+    await touchJob(`Расшифровка (${sizeMb} МБ)...`);
 
-    /** ElevenLabs can run long; DB cron used to mark "stalled" if row stale — bump updated_at */
     const FETCH_TIMEOUT_MS = 45 * 60 * 1000;
-    const HEARTBEAT_MS = 2 * 60 * 1000;
 
     const fileName = audioPath.split("/").pop() || "audio";
     const boundary = `----LexScribeBoundary${crypto.randomUUID().replace(/-/g, "")}`;
@@ -268,17 +282,6 @@ async function processJob(
       if (await isCancelled()) controller.abort();
     }, 5000);
 
-    const heartbeat = setInterval(async () => {
-      try {
-        if (await isCancelled()) return;
-        await updateJob({
-          status_message: `Расшифровка (${sizeMb} МБ)...`,
-        });
-      } catch (e) {
-        console.warn(`[job ${jobId}] heartbeat:`, e);
-      }
-    }, HEARTBEAT_MS);
-
     let response: Response;
     try {
       response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
@@ -303,12 +306,11 @@ async function processJob(
     } finally {
       clearTimeout(timeoutId);
       clearInterval(cancelPoll);
-      clearInterval(heartbeat);
     }
 
     console.log(`[job ${jobId}] ElevenLabs responded with ${response.status}`);
     await checkpoint();
-    await updateJob({ status_message: "Получен ответ, чтение данных..." });
+    await touchJob("Получен ответ, чтение данных...");
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -321,7 +323,7 @@ async function processJob(
     const transcription = (await response.json()) as ElevenLabsTranscription;
     await checkpoint();
     const wordCount = transcription.words?.length ?? 0;
-    await updateJob({ status_message: `Разбор ролей (${wordCount} слов)...` });
+    await touchJob(`Разбор ролей (${wordCount} слов)...`);
 
     const segments = convertToSegments(transcription, numSpeakers);
 
@@ -366,6 +368,8 @@ async function processJob(
       .from("transcription_jobs")
       .update({ status: "error", error: message, status_message: "Ошибка" })
       .eq("id", jobId);
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 
