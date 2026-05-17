@@ -2,3 +2,6 @@ project_id = "cbyzoatcaleeemrjpfek"
 
 [functions.elevenlabs-webhook]
 verify_jwt = false
+
+[functions.contact-send]
+verify_jwt = false

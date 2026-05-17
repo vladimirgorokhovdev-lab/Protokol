@@ -27,15 +27,19 @@ const Contact = () => {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.from("contact_messages").insert({
-      user_id: user?.id ?? null,
-      name: name.trim(),
-      email: email.trim(),
-      message: message.trim(),
+    const { data, error } = await supabase.functions.invoke("contact-send", {
+      body: {
+        name: name.trim(),
+        email: email.trim(),
+        message: message.trim(),
+      },
     });
     setSubmitting(false);
-    if (error) {
-      toast.error("Не удалось отправить сообщение. Попробуйте ещё раз.");
+    if (error || (data as { error?: string })?.error) {
+      toast.error(
+        (data as { error?: string })?.error ??
+          "Не удалось отправить сообщение. Попробуйте ещё раз или напишите на почту напрямую.",
+      );
       return;
     }
     setSent(true);
@@ -64,7 +68,7 @@ const Contact = () => {
             Написать нам
           </h1>
           <p className="text-muted-foreground">
-            Опишите ваш вопрос — мы ответим на указанный email.
+            Опишите ваш вопрос — сообщение придёт на {SUPPORT_EMAIL}, ответим на указанный email.
           </p>
           <a
             href={`mailto:${SUPPORT_EMAIL_MAILTO}`}

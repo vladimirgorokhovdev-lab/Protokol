@@ -14,6 +14,7 @@ on:
           - ai-summary
           - yookassa-webhook
           - merge-audio
+          - contact-send
           - all
 
 concurrency:
@@ -63,3 +64,7 @@ jobs:
       - name: Deploy merge-audio
         if: inputs.function == 'merge-audio' || inputs.function == 'all'
         run: supabase functions deploy merge-audio --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy contact-send
+        if: inputs.function == 'contact-send' || inputs.function == 'all'
+        run: supabase functions deploy contact-send --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
