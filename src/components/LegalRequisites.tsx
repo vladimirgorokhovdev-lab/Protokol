@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_MAILTO } from "@/lib/siteContact";
+
 interface LegalRequisitesProps {
   variant?: "footer" | "card";
   className?: string;
@@ -10,7 +12,8 @@ export const LEGAL_INFO = {
   inn: "561014782129",
   registrationDate: "08.12.2025",
   registrationAuthority: "Межрайонная инспекция ФНС № 46 по г. Москве",
-  email: "vladislavpakhomov2006@gmail.com",
+  email: SUPPORT_EMAIL,
+  emailMailto: SUPPORT_EMAIL_MAILTO,
 } as const;
 
 export function LegalRequisites({ variant = "footer", className = "" }: LegalRequisitesProps) {
@@ -23,7 +26,7 @@ export function LegalRequisites({ variant = "footer", className = "" }: LegalReq
         </p>
         <p>
           E-mail:{" "}
-          <a href={`mailto:${LEGAL_INFO.email}`} className="hover:text-foreground transition-colors">
+          <a href={`mailto:${LEGAL_INFO.emailMailto}`} className="hover:text-foreground transition-colors">
             {LEGAL_INFO.email}
           </a>
         </p>
@@ -58,7 +61,7 @@ export function LegalRequisites({ variant = "footer", className = "" }: LegalReq
         <div className="flex flex-wrap gap-2">
           <dt className="font-medium text-foreground">E-mail:</dt>
           <dd>
-            <a href={`mailto:${LEGAL_INFO.email}`} className="hover:text-foreground transition-colors underline">
+            <a href={`mailto:${LEGAL_INFO.emailMailto}`} className="hover:text-foreground transition-colors underline">
               {LEGAL_INFO.email}
             </a>
           </dd>

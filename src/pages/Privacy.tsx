@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from "@/lib/siteContact";
 
 const Privacy = () => {
   return (
@@ -64,7 +65,7 @@ const Privacy = () => {
               <li><strong>ИНН:</strong> [ИНН]</li>
               <li><strong>ОГРН/ОГРНИП:</strong> [ОГРН/ОГРНИП]</li>
               <li><strong>Юридический адрес:</strong> [Адрес]</li>
-              <li><strong>Электронная почта:</strong> <span className="text-primary font-medium">support@protokol.app</span></li>
+              <li><strong>Электронная почта:</strong> <span className="text-primary font-medium">{SUPPORT_EMAIL}</span></li>
             </ul>
             <p>3.2. Оператор зарегистрирован в Реестре операторов, осуществляющих обработку персональных данных, Роскомнадзором (регистрационный номер: [номер]).</p>
           </section>
@@ -195,7 +196,7 @@ const Privacy = () => {
               <li>Обжаловать действия или бездействие Оператора в уполномоченный орган по защите прав субъектов персональных данных (Роскомнадзор) или в судебном порядке;</li>
               <li>Осуществлять иные права, предусмотренные законодательством Российской Федерации.</li>
             </ul>
-            <p>11.2. Для реализации своих прав субъект персональных данных может направить запрос по адресу электронной почты: <span className="text-primary font-medium">support@protokol.app</span>. Запрос должен содержать:</p>
+            <p>11.2. Для реализации своих прав субъект персональных данных может направить запрос по адресу электронной почты: <span className="text-primary font-medium">{SUPPORT_EMAIL}</span>. Запрос должен содержать:</p>
             <ul className="list-disc pl-6 space-y-1">
               <li>Номер основного документа, удостоверяющего личность субъекта (его представителя);</li>
               <li>Сведения о дате выдачи указанного документа и выдавшем его органе;</li>
@@ -258,8 +259,8 @@ const Privacy = () => {
           <section>
             <h2 className="text-xl font-semibold text-foreground font-playfair">17. Заключительные положения</h2>
             <p>17.1. Оператор имеет право вносить изменения в настоящую Политику. Новая редакция Политики вступает в силу с момента её размещения на сайте Сервиса, если иное не предусмотрено новой редакцией Политики.</p>
-            <p>17.2. Действующая редакция Политики постоянно доступна на странице Сервиса по адресу: <span className="text-primary font-medium">protokol.app/privacy</span>.</p>
-            <p>17.3. По всем вопросам, связанным с обработкой персональных данных, Пользователь может обращаться по адресу электронной почты: <span className="text-primary font-medium">support@protokol.app</span>.</p>
+            <p>17.2. Действующая редакция Политики постоянно доступна на странице Сервиса по адресу: <a href={PRIVACY_POLICY_URL} className="text-primary font-medium hover:underline">{PRIVACY_POLICY_URL}</a>.</p>
+            <p>17.3. По всем вопросам, связанным с обработкой персональных данных, Пользователь может обращаться по адресу электронной почты: <span className="text-primary font-medium">{SUPPORT_EMAIL}</span>.</p>
           </section>
 
           <section className="border-t border-border pt-6 mt-8">

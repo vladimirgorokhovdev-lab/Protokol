@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 import { Mail, Phone, Clock, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const SUPPORT_EMAIL = "protokol-transcript@yandex.ru";
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_MAILTO } from "@/lib/siteContact";
 const SUPPORT_PHONE_DISPLAY = "8 800 — — — — —";
 const SUPPORT_HOURS = "Пн–Пт, 10:00–19:00 МСК";
 
@@ -22,14 +21,14 @@ export function SupportSection() {
             Техническая поддержка
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto text-sm">
-            Если возникли вопросы по работе сервиса — напишите нам или позвоните.
-            Мы поможем разобраться.
+            Если возникли вопросы по работе сервиса — напишите нам или
+            позвоните. Мы поможем разобраться.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <a
-            href={`mailto:${SUPPORT_EMAIL}`}
+            href={`mailto:${SUPPORT_EMAIL_MAILTO}`}
             className="flex flex-col items-center gap-2 rounded-lg border border-border bg-background p-5 hover:border-accent transition-colors"
           >
             <Mail className="w-6 h-6 text-accent" aria-hidden="true" />

@@ -46,6 +46,8 @@ export function detectJobStage(
     msg.includes("повторная попытк") ||
     msg.includes("подготовка к расшифровке") ||
     msg.includes("отправк") ||
+    msg.includes("ожидание результата") ||
+    msg.includes("elevenlabs") ||
     msg.includes("расшифров") ||
     msg.includes("получен ответ") ||
     msg.includes("чтение данных")
@@ -105,6 +107,17 @@ export function computeDisplayPercent(
     return 90;
   }
   if (msg.includes("получен ответ") || msg.includes("чтение данных")) return 87;
+  if (msg.includes("ожидание результата") || msg.includes("elevenlabs")) {
+    const t0 = opts?.uploadCompletedAtMs;
+    if (t0) {
+      const elapsed = (now - t0) / 1000;
+      const durationSec = opts?.mediaDurationSec ?? 0;
+      const estimatedSec = estimateProcessingSeconds(durationSec);
+      const t = Math.min(1, elapsed / estimatedSec);
+      return Math.min(92, Math.round(70 + t * 22));
+    }
+    return 75;
+  }
 
   const t0 = opts?.uploadCompletedAtMs;
   const durationSec = opts?.mediaDurationSec ?? 0;

@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_MAILTO } from "@/lib/siteContact";
 
 const Terms = () => {
   return (
@@ -114,7 +115,7 @@ const Terms = () => {
 
           <section>
             <h2 className="text-xl font-semibold text-foreground font-playfair">10. Контакты</h2>
-            <p>По вопросам, связанным с использованием Сервиса: <a href="mailto:protokol-transcript@yandex.ru" className="text-primary font-medium hover:underline">protokol-transcript@yandex.ru</a></p>
+            <p>По вопросам, связанным с использованием Сервиса: <a href={`mailto:${SUPPORT_EMAIL_MAILTO}`} className="text-primary font-medium hover:underline">{SUPPORT_EMAIL}</a></p>
           </section>
         </div>
       </div>

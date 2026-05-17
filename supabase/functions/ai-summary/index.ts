@@ -3,6 +3,87 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { corsHeadersForRequest, handleCorsPreflight } from "../_shared/cors.ts";
 
+type SegmentInput = {
+  speaker: string;
+  text: string;
+  startTime: number;
+};
+
+/** ~90k chars — safe for gpt-4o-mini context with tool output. */
+const MAX_TRANSCRIPT_CHARS = 90_000;
+
+function json(
+  status: number,
+  body: unknown,
+  corsHeaders: Record<string, string>,
+) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function formatTime(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+function segmentLine(
+  s: SegmentInput,
+  speakerNames?: Record<string, string>,
+): string {
+  const speaker = speakerNames?.[s.speaker] || s.speaker;
+  return `[${formatTime(s.startTime)}] ${speaker}: ${s.text}`;
+}
+
+/** Long hearings: sample head, tail, and evenly spaced middle. */
+function buildTranscriptForSummary(
+  segments: SegmentInput[],
+  speakerNames?: Record<string, string>,
+): { text: string; truncated: boolean } {
+  const lines = segments.map((s) => segmentLine(s, speakerNames));
+  const full = lines.join("\n");
+  if (full.length <= MAX_TRANSCRIPT_CHARS) {
+    return { text: full, truncated: false };
+  }
+
+  const head = Math.min(120, segments.length);
+  const tail = Math.min(120, segments.length);
+  const picked = new Set<number>();
+  for (let i = 0; i < head; i++) picked.add(i);
+  for (let i = Math.max(head, segments.length - tail); i < segments.length; i++) {
+    picked.add(i);
+  }
+
+  const midStart = head;
+  const midEnd = Math.max(midStart, segments.length - tail);
+  const midSlots = 250;
+  const step = Math.max(1, Math.ceil((midEnd - midStart) / midSlots));
+  for (let i = midStart; i < midEnd; i += step) picked.add(i);
+
+  const ordered = [...picked].sort((a, b) => a - b);
+  const out: string[] = [
+    `[Для анализа использована сокращённая выборка из ${segments.length} фрагментов полной расшифровки.]`,
+    "",
+  ];
+  let prev = -1;
+  for (const idx of ordered) {
+    if (prev >= 0 && idx > prev + 1) {
+      out.push("[...]");
+    }
+    out.push(segmentLine(segments[idx], speakerNames));
+    prev = idx;
+    if (out.join("\n").length >= MAX_TRANSCRIPT_CHARS) break;
+  }
+
+  let text = out.join("\n");
+  if (text.length > MAX_TRANSCRIPT_CHARS) {
+    text = text.slice(0, MAX_TRANSCRIPT_CHARS);
+  }
+  return { text, truncated: true };
+}
+
 serve(async (req) => {
   const preflight = handleCorsPreflight(req);
   if (preflight) return preflight;
@@ -11,10 +92,7 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Не авторизован" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json(401, { error: "Не авторизован" }, corsHeaders);
     }
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -26,38 +104,40 @@ serve(async (req) => {
       error: authError,
     } = await userClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Не авторизован" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json(401, { error: "Не авторизован" }, corsHeaders);
     }
 
     const { segments, speakerNames } = await req.json();
 
     if (!segments || !Array.isArray(segments) || segments.length === 0) {
-      return new Response(JSON.stringify({ error: "No segments provided" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json(400, { error: "Нет текста для анализа" }, corsHeaders);
     }
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
-      throw new Error(
-        "OPENAI_API_KEY is not configured (Edge Function secret)",
+      return json(
+        503,
+        {
+          error:
+            "AI-резюме не настроено: добавьте OPENAI_API_KEY в Supabase → Edge Functions → Secrets",
+        },
+        corsHeaders,
       );
     }
+
     const model = Deno.env.get("OPENAI_SUMMARY_MODEL")?.trim() || "gpt-4o-mini";
     const apiBase = (
       Deno.env.get("OPENAI_API_BASE")?.trim() || "https://api.openai.com/v1"
     ).replace(/\/$/, "");
 
-    const transcript = segments
-      .map((s: any) => {
-        const speaker = speakerNames?.[s.speaker] || s.speaker;
-        return `[${formatTime(s.startTime)}] ${speaker}: ${s.text}`;
-      })
-      .join("\n");
+    const { text: transcript, truncated } = buildTranscriptForSummary(
+      segments as SegmentInput[],
+      speakerNames,
+    );
+
+    console.log(
+      `ai-summary: user=${user.id} segments=${segments.length} chars=${transcript.length} truncated=${truncated}`,
+    );
 
     const systemPrompt = `Ты — юридический AI-ассистент для анализа расшифровок. Отвечай ТОЛЬКО на русском языке.
 
@@ -139,68 +219,68 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      const t = await response.text();
+      console.error("OpenAI API error:", response.status, t.slice(0, 500));
+
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({
-            error: "Превышен лимит запросов. Попробуйте позже.",
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+        return json(
+          429,
+          { error: "Превышен лимит запросов. Попробуйте позже." },
+          corsHeaders,
         );
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Недостаточно средств для AI-анализа." }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+        return json(
+          402,
+          { error: "Недостаточно средств на счёте OpenAI." },
+          corsHeaders,
         );
       }
-      const t = await response.text();
-      console.error("OpenAI API error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Ошибка AI-сервиса" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (
+        response.status === 400 &&
+        /context|token|length|maximum/i.test(t)
+      ) {
+        return json(
+          413,
+          {
+            error:
+              "Расшифровка слишком длинная для одного AI-запроса. Попробуйте позже или сократите текст.",
+          },
+          corsHeaders,
+        );
+      }
+      return json(
+        502,
+        {
+          error: "Ошибка AI-сервиса (OpenAI). Проверьте ключ и баланс.",
+        },
+        corsHeaders,
+      );
     }
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall?.function?.arguments) {
-      return new Response(
-        JSON.stringify({ error: "AI не вернул структурированный ответ" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+      return json(
+        500,
+        { error: "AI не вернул структурированный ответ" },
+        corsHeaders,
       );
     }
 
     const analysis = JSON.parse(toolCall.function.arguments);
 
-    return new Response(JSON.stringify(analysis), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ ...analysis, truncatedSample: truncated }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (e) {
     console.error("ai-summary error:", e);
-    return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+    return json(
+      500,
+      { error: e instanceof Error ? e.message : "Unknown error" },
+      corsHeaders,
     );
   }
 });
-
-function formatTime(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-}

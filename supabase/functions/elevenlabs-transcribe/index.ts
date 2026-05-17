@@ -1,150 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 import { corsHeadersForRequest, handleCorsPreflight } from "../_shared/cors.ts";
-
-interface TranscriptSegment {
-  id: string;
-  speaker: string;
-  speakerIndex: number;
-  text: string;
-  startTime: number;
-  endTime: number;
-}
-
-interface ElevenLabsWord {
-  text: string;
-  start: number;
-  end: number;
-  speaker?: string;
-  speaker_id?: string;
-}
-
-interface ElevenLabsTranscription {
-  text?: string;
-  words?: ElevenLabsWord[];
-}
-
-function formatSpeakerName(speaker: string, index: number): string {
-  if (speaker === "unknown") return `Спикер ${index + 1}`;
-  if (speaker.startsWith("speaker_")) {
-    return `Спикер ${Number.parseInt(speaker.split("_")[1], 10) + 1}`;
-  }
-  return speaker;
-}
-
-function convertToSegments(
-  data: ElevenLabsTranscription,
-  maxSpeakers: number | null = null,
-): TranscriptSegment[] {
-  if (!data.words || data.words.length === 0) {
-    return [
-      {
-        id: "1",
-        speaker: "Спикер",
-        speakerIndex: 0,
-        text: data.text ?? "",
-        startTime: 0,
-        endTime: 0,
-      },
-    ];
-  }
-
-  const speakerRemap = new Map<string, string>();
-  if (maxSpeakers && maxSpeakers >= 1) {
-    const durations = new Map<string, number>();
-    for (const w of data.words) {
-      const sp = w.speaker_id ?? w.speaker ?? "unknown";
-      durations.set(
-        sp,
-        (durations.get(sp) ?? 0) + Math.max(0, (w.end ?? 0) - (w.start ?? 0)),
-      );
-    }
-    const sorted = [...durations.entries()].sort((a, b) => b[1] - a[1]);
-    const keep = new Set(sorted.slice(0, maxSpeakers).map(([sp]) => sp));
-    if (sorted.length > maxSpeakers) {
-      const keepWords = data.words.filter((w) =>
-        keep.has(w.speaker_id ?? w.speaker ?? "unknown"),
-      );
-      for (const [sp] of sorted.slice(maxSpeakers)) {
-        const myWords = data.words.filter(
-          (w) => (w.speaker_id ?? w.speaker ?? "unknown") === sp,
-        );
-        if (myWords.length === 0) continue;
-        const myMid = (myWords[0].start + myWords[myWords.length - 1].end) / 2;
-        let bestSp = sorted[0][0];
-        let bestDist = Infinity;
-        for (const w of keepWords) {
-          const wMid = (w.start + w.end) / 2;
-          const d = Math.abs(wMid - myMid);
-          if (d < bestDist) {
-            bestDist = d;
-            bestSp = w.speaker_id ?? w.speaker ?? "unknown";
-          }
-        }
-        speakerRemap.set(sp, bestSp);
-      }
-    }
-  }
-
-  const resolveSpeaker = (raw: string): string => speakerRemap.get(raw) ?? raw;
-
-  const segments: TranscriptSegment[] = [];
-  const speakerMap = new Map<string, number>();
-  let currentSpeaker = resolveSpeaker(
-    data.words[0].speaker_id ?? data.words[0].speaker ?? "unknown",
-  );
-  let currentWords: string[] = [data.words[0].text];
-  let startTime = data.words[0].start;
-  let endTime = data.words[0].end;
-
-  if (!speakerMap.has(currentSpeaker)) {
-    speakerMap.set(currentSpeaker, speakerMap.size);
-  }
-
-  for (let i = 1; i < data.words.length; i++) {
-    const word = data.words[i];
-    const speaker = resolveSpeaker(
-      word.speaker_id ?? word.speaker ?? "unknown",
-    );
-
-    if (speaker !== currentSpeaker) {
-      segments.push({
-        id: String(segments.length + 1),
-        speaker: formatSpeakerName(
-          currentSpeaker,
-          speakerMap.get(currentSpeaker) ?? 0,
-        ),
-        speakerIndex: speakerMap.get(currentSpeaker) ?? 0,
-        text: currentWords.join(" ").trim(),
-        startTime,
-        endTime,
-      });
-      currentSpeaker = speaker;
-      if (!speakerMap.has(speaker)) speakerMap.set(speaker, speakerMap.size);
-      currentWords = [word.text];
-      startTime = word.start;
-      endTime = word.end;
-      continue;
-    }
-
-    currentWords.push(word.text);
-    endTime = word.end;
-  }
-
-  segments.push({
-    id: String(segments.length + 1),
-    speaker: formatSpeakerName(
-      currentSpeaker,
-      speakerMap.get(currentSpeaker) ?? 0,
-    ),
-    speakerIndex: speakerMap.get(currentSpeaker) ?? 0,
-    text: currentWords.join(" ").trim(),
-    startTime,
-    endTime,
-  });
-
-  return segments;
-}
+import {
+  buildElevenLabsForm,
+  convertToSegments,
+  formatSizeMbFromUrl,
+  type ElevenLabsTranscription,
+} from "../_shared/elevenlabsTranscript.ts";
 
 function jsonResponse(
   status: number,
@@ -155,6 +17,22 @@ function jsonResponse(
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function isWebhookAck(data: Record<string, unknown>): boolean {
+  return (
+    typeof data.request_id === "string" ||
+    typeof data.transcription_id === "string" ||
+    (typeof data.message === "string" &&
+      !Array.isArray((data as ElevenLabsTranscription).words))
+  );
+}
+
+function hasSyncTranscript(data: ElevenLabsTranscription): boolean {
+  return Boolean(
+    (data.words && data.words.length > 0) ||
+      (data.text && data.text.length > 0),
+  );
 }
 
 async function processJob(
@@ -187,21 +65,9 @@ async function processJob(
     if (await isCancelled()) throw new CancelledError();
   };
 
-  let lastStatusMessage = "Обработка...";
   const touchJob = async (message: string) => {
-    lastStatusMessage = message;
     await updateJob({ status_message: message });
   };
-
-  const HEARTBEAT_MS = 45 * 1000;
-  const heartbeat = setInterval(async () => {
-    try {
-      if (await isCancelled()) return;
-      await updateJob({ status_message: lastStatusMessage });
-    } catch (e) {
-      console.warn(`[job ${jobId}] heartbeat:`, e);
-    }
-  }, HEARTBEAT_MS);
 
   try {
     await checkpoint();
@@ -212,94 +78,48 @@ async function processJob(
     );
     await updateJob({ status: "processing" });
 
-    const signedUrl = (
-      await admin.storage.from("audio-files").createSignedUrl(audioPath, 3600)
-    ).data?.signedUrl;
-    if (!signedUrl) throw new Error("Не удалось получить ссылку на файл");
+    let cloudStorageUrl: string;
+    if (/^https?:\/\//i.test(audioPath)) {
+      cloudStorageUrl = audioPath;
+    } else {
+      const signed = await admin.storage
+        .from("audio-files")
+        .createSignedUrl(audioPath, 3600);
+      if (!signed.data?.signedUrl) {
+        throw new Error("Не удалось получить ссылку на файл");
+      }
+      cloudStorageUrl = signed.data.signedUrl;
+    }
     await checkpoint();
 
-    const audioRes = await fetch(signedUrl);
-    if (audioRes && (!audioRes.ok || !audioRes.body)) {
-      throw new Error(`Не удалось открыть файл (${audioRes.status})`);
-    }
-    const contentLength = audioRes?.headers.get("content-length");
-    const sizeMb = contentLength
-      ? (Number(contentLength) / 1024 / 1024).toFixed(2)
-      : "?";
-    console.log(`[job ${jobId}] streaming ${sizeMb} MB to ElevenLabs`);
-    await touchJob(`Расшифровка (${sizeMb} МБ)...`);
+    const sizeMb = await formatSizeMbFromUrl(cloudStorageUrl);
+    console.log(
+      `[job ${jobId}] ElevenLabs async webhook (${sizeMb} MB, cloud_storage_url)`,
+    );
+    await touchJob(`Отправка в ElevenLabs (${sizeMb} МБ)...`);
 
-    const FETCH_TIMEOUT_MS = 45 * 60 * 1000;
-
-    const fileName = audioPath.split("/").pop() || "audio";
-    const boundary = `----LexScribeBoundary${crypto.randomUUID().replace(/-/g, "")}`;
-    const enc = new TextEncoder();
-    const fields: Array<[string, string]> = [
-      ["model_id", "scribe_v2"],
-      ["diarize", "true"],
-      ["tag_audio_events", "true"],
-      ["language_code", "rus"],
-    ];
-    if (numSpeakers) fields.push(["num_speakers", String(numSpeakers)]);
-
-    const buildFieldPart = (name: string, value: string) =>
-      `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`;
-    const fileHeader =
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-      `Content-Type: application/octet-stream\r\n\r\n`;
-    const closing = `\r\n--${boundary}--\r\n`;
-
-    const audioReader = audioRes.body!.getReader();
-
-    const readNextMediaChunk = async (): Promise<Uint8Array | null> => {
-      const { done, value } = await audioReader.read();
-      return done ? null : value;
-    };
-    const multipartStream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        for (const [k, v] of fields)
-          controller.enqueue(enc.encode(buildFieldPart(k, v)));
-        controller.enqueue(enc.encode(fileHeader));
-      },
-      async pull(controller) {
-        const value = await readNextMediaChunk();
-        if (!value) {
-          controller.enqueue(enc.encode(closing));
-          controller.close();
-          return;
-        }
-        controller.enqueue(value);
-      },
-      cancel() {
-        audioReader?.cancel().catch(() => {});
-      },
-    });
-
+    const SUBMIT_TIMEOUT_MS = 2 * 60 * 1000;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
     const cancelPoll = setInterval(async () => {
       if (await isCancelled()) controller.abort();
     }, 5000);
+
+    const form = buildElevenLabsForm(cloudStorageUrl, numSpeakers, jobId);
 
     let response: Response;
     try {
       response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
         method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        },
-        body: multipartStream,
+        headers: { "xi-api-key": apiKey },
+        body: form,
         signal: controller.signal,
-        // @ts-ignore
-        duplex: "half",
       });
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         if (await isCancelled()) throw new CancelledError();
         throw new Error(
-          `Таймаут запроса к ElevenLabs (${Math.round(FETCH_TIMEOUT_MS / 60000)} мин). Файл очень длинный — разбейте на части или сожмите MP3.`,
+          "Таймаут при отправке в ElevenLabs. Повторите позже.",
         );
       }
       throw new Error(`Сетевая ошибка ElevenLabs: ${(err as Error).message}`);
@@ -308,9 +128,8 @@ async function processJob(
       clearInterval(cancelPoll);
     }
 
-    console.log(`[job ${jobId}] ElevenLabs responded with ${response.status}`);
+    console.log(`[job ${jobId}] ElevenLabs submit responded ${response.status}`);
     await checkpoint();
-    await touchJob("Получен ответ, чтение данных...");
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -320,33 +139,45 @@ async function processJob(
       );
     }
 
-    const transcription = (await response.json()) as ElevenLabsTranscription;
-    await checkpoint();
-    const wordCount = transcription.words?.length ?? 0;
-    await touchJob(`Разбор ролей (${wordCount} слов)...`);
+    const payload = (await response.json()) as ElevenLabsTranscription &
+      Record<string, unknown>;
 
-    const segments = convertToSegments(transcription, numSpeakers);
+    if (hasSyncTranscript(payload)) {
+      await touchJob("Разбор ролей...");
+      const segments = convertToSegments(payload, numSpeakers);
+      if (segments.length === 0) throw new Error("Пустая расшифровка");
 
-    if (segments.length === 0) throw new Error("Пустая расшифровка");
+      const { data: finalCheck } = await admin
+        .from("transcription_jobs")
+        .update({
+          status: "done",
+          status_message: `Готово: ${segments.length} фрагментов`,
+          segments,
+          error: null,
+        })
+        .eq("id", jobId)
+        .neq("status", "cancelled")
+        .select("id")
+        .maybeSingle();
 
-    const { data: finalCheck } = await admin
-      .from("transcription_jobs")
-      .update({
-        status: "done",
-        status_message: `Готово: ${segments.length} фрагментов`,
-        segments,
-        error: null,
-      })
-      .eq("id", jobId)
-      .neq("status", "cancelled")
-      .select("id")
-      .maybeSingle();
-
-    if (!finalCheck) {
-      console.log(
-        `[job ${jobId}] cancelled before final write — skipping done state`,
-      );
+      if (!finalCheck) {
+        console.log(`[job ${jobId}] cancelled before sync final write`);
+      }
+      return;
     }
+
+    if (isWebhookAck(payload)) {
+      const requestId = payload.request_id ?? "unknown";
+      console.log(`[job ${jobId}] webhook accepted, request_id=${requestId}`);
+      await updateJob({
+        status: "processing",
+        status_message: "Ожидание результата от ElevenLabs…",
+        error: null,
+      });
+      return;
+    }
+
+    throw new Error("Неожиданный ответ ElevenLabs (нет request_id и нет текста)");
   } catch (error) {
     if (
       error instanceof CancelledError ||
@@ -368,8 +199,6 @@ async function processJob(
       .from("transcription_jobs")
       .update({ status: "error", error: message, status_message: "Ошибка" })
       .eq("id", jobId);
-  } finally {
-    clearInterval(heartbeat);
   }
 }
 

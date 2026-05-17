@@ -1,5 +1,3 @@
-# Деплой Edge Functions без установки Supabase CLI на Mac.
-# GitHub → Actions → "Supabase Edge Functions" → Run workflow
 name: Supabase Edge Functions
 
 on:
@@ -12,6 +10,7 @@ on:
         type: choice
         options:
           - elevenlabs-transcribe
+          - elevenlabs-webhook
           - ai-summary
           - yookassa-webhook
           - merge-audio
@@ -48,6 +47,10 @@ jobs:
       - name: Deploy elevenlabs-transcribe
         if: inputs.function == 'elevenlabs-transcribe' || inputs.function == 'all'
         run: supabase functions deploy elevenlabs-transcribe --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Deploy elevenlabs-webhook
+        if: inputs.function == 'elevenlabs-webhook' || inputs.function == 'all'
+        run: supabase functions deploy elevenlabs-webhook --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
 
       - name: Deploy ai-summary
         if: inputs.function == 'ai-summary' || inputs.function == 'all'

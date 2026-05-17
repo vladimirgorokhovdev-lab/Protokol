@@ -10,8 +10,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-
-const SUPPORT_EMAIL = "protokol-transcript@yandex.ru";
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_MAILTO } from "@/lib/siteContact";
 
 const Contact = () => {
   const { user } = useAuth();
@@ -68,7 +67,7 @@ const Contact = () => {
             Опишите ваш вопрос — мы ответим на указанный email.
           </p>
           <a
-            href={`mailto:${SUPPORT_EMAIL}`}
+            href={`mailto:${SUPPORT_EMAIL_MAILTO}`}
             className="inline-flex items-center gap-1.5 mt-3 text-sm text-accent hover:underline"
           >
             <Mail className="w-4 h-4" />

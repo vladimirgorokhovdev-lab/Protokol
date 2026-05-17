@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Crown, Zap, Shield, ArrowLeft, Loader2, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
-import { LegalRequisites } from "@/components/LegalRequisites";
 import { toast } from "sonner";
 
 const plans = [
@@ -231,10 +230,6 @@ export default function Pricing() {
         <p className="text-center text-xs text-muted-foreground mt-8">
           Оплата через ЮKassa. Поддерживаются карты российских банков, СБП и ЮMoney.
         </p>
-
-        <div className="mt-8 max-w-2xl mx-auto">
-          <LegalRequisites variant="card" />
-        </div>
       </div>
     </div>
   );
