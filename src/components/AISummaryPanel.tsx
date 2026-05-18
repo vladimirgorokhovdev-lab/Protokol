@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -10,13 +9,11 @@ import {
   Copy,
   EyeOff,
   Eye,
-  Lock,
   Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { saveAiSummary, loadAiSummary } from "@/lib/transcriptionStorage";
-import { useSubscription } from "@/hooks/useSubscription";
 import type { TranscriptSegment } from "@/lib/transcript";
 
 interface AISummaryData {
@@ -76,8 +73,6 @@ const AISummaryPanel = ({
   onSummaryData,
   transcriptionId,
 }: AISummaryPanelProps) => {
-  const { canUseAiSummary, loading: subLoading } = useSubscription();
-  const hasAiAccess = canUseAiSummary;
   const [data, setData] = useState<AISummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -109,14 +104,6 @@ const AISummaryPanel = ({
   }, [transcriptionId]);
 
   const analyze = async () => {
-    if (!hasAiAccess) {
-      toast({
-        title: "Доступно в тарифах «Про» и «Команда»",
-        description:
-          "AI-резюме входит в тарифы «Про» и «Команда». Откройте раздел тарифов.",
-      });
-      return;
-    }
     setLoading(true);
     try {
       const { data: result, error } = await supabase.functions.invoke(
@@ -151,22 +138,10 @@ const AISummaryPanel = ({
     setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
 
   if (!data) {
-    if (!subLoading && !hasAiAccess) {
-      return (
-        <Link
-          to="/pricing"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-gold/20 to-gold/10 border border-gold/30 hover:border-gold/50 text-gold transition-all text-sm font-medium"
-          title="AI-резюме доступно в тарифах «Про» и «Команда»"
-        >
-          <Lock className="w-4 h-4" />
-          AI-резюме · «Про» / «Команда»
-        </Link>
-      );
-    }
     return (
       <button
         onClick={analyze}
-        disabled={loading || subLoading}
+        disabled={loading}
         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-gold/20 to-gold/10 border border-gold/30 hover:border-gold/50 text-gold transition-all text-sm font-medium disabled:opacity-50"
       >
         {loading ? (
@@ -174,7 +149,7 @@ const AISummaryPanel = ({
         ) : (
           <Sparkles className="w-4 h-4" />
         )}
-        {loading ? "Анализ..." : "AI-резюме"}
+        {loading ? "Анализ..." : "Краткое AI-резюме"}
       </button>
     );
   }

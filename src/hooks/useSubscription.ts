@@ -61,7 +61,6 @@ export function useSubscription(): SubscriptionInfo & {
         { data: usage },
         { data: membership },
         { data: canTranscribe },
-        { data: canUseAiSummary },
       ] = await Promise.all([
         supabase
           .from("subscriptions")
@@ -83,7 +82,6 @@ export function useSubscription(): SubscriptionInfo & {
           p_user_id: user.id,
           p_estimated_seconds: 0,
         }),
-        supabase.rpc("can_use_ai_summary", { p_user_id: user.id }),
       ]);
 
       const personalTier: SubscriptionTier =
@@ -144,7 +142,7 @@ export function useSubscription(): SubscriptionInfo & {
         monthlyUsed,
         monthlySecondsUsed,
         canTranscribe: canTranscribe ?? true,
-        canUseAiSummary: canUseAiSummary ?? false,
+        canUseAiSummary: true,
         loading: false,
       });
     } catch (error) {

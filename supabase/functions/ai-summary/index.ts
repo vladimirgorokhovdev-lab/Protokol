@@ -107,26 +107,6 @@ serve(async (req) => {
       return json(401, { error: "Не авторизован" }, corsHeaders);
     }
 
-    const { data: aiAllowed, error: aiQuotaErr } = await userClient.rpc(
-      "can_use_ai_summary",
-      { p_user_id: user.id },
-    );
-    if (aiQuotaErr) {
-      console.error("AI quota check failed:", aiQuotaErr);
-      return json(500, { error: "Не удалось проверить доступ" }, corsHeaders);
-    }
-    if (!aiAllowed) {
-      return json(
-        403,
-        {
-          error: "ai_tier_required",
-          message:
-            "AI-резюме доступно в тарифах «Про» и «Команда». Оформите подписку.",
-        },
-        corsHeaders,
-      );
-    }
-
     const { segments, speakerNames } = await req.json();
 
     if (!segments || !Array.isArray(segments) || segments.length === 0) {
