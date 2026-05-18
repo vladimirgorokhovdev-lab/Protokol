@@ -40,17 +40,14 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
         toast({
           title: "Печать протокола",
           description:
-            "Откроется вкладка с документом. В настройках печати отключите «Колонтитулы», затем «Сохранить как PDF».",
+            "В настройках печати отключите «Колонтитулы», затем «Сохранить как PDF».",
         });
       } else {
         toast({ title: "Экспорт", description: "Файл .docx сформирован" });
       }
       onClose();
     } catch (e) {
-      const msg =
-        e instanceof Error && e.message === "POPUP_BLOCKED"
-          ? "Разрешите всплывающие окна для сайта — иначе PDF не откроется"
-          : "Не удалось экспортировать";
+      const msg = "Не удалось экспортировать";
       toast({ title: "Ошибка", description: msg, variant: "destructive" });
     } finally {
       setExporting(false);

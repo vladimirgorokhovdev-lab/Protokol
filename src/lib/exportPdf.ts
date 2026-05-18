@@ -114,18 +114,17 @@ export function textToHtmlParagraphs(text: string): string {
     .join("");
 }
 
-/** Печать HTML протокола в отдельной вкладке (blob URL — не about:blank) */
+/** Печать HTML протокола без новой вкладки (скрытый iframe + blob URL) */
 export function printHtmlDocument(html: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
-    const printWindow = window.open(url, "_blank");
-    if (!printWindow) {
-      URL.revokeObjectURL(url);
-      reject(new Error("POPUP_BLOCKED"));
-      return;
-    }
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("title", "Печать протокола");
+    iframe.style.cssText =
+      "position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;visibility:hidden;";
+    document.body.appendChild(iframe);
 
     let printed = false;
     let done = false;
@@ -134,36 +133,31 @@ export function printHtmlDocument(html: string): Promise<void> {
       if (done) return;
       done = true;
       URL.revokeObjectURL(url);
+      iframe.remove();
       resolve();
     };
 
     const runPrint = () => {
       if (printed) return;
-      try {
-        if (printWindow.document?.readyState !== "complete") return;
-      } catch {
-        return;
-      }
+      const win = iframe.contentWindow;
+      const doc = iframe.contentDocument;
+      if (!win || !doc || doc.readyState !== "complete") return;
+
       printed = true;
-      printWindow.focus();
-      printWindow.print();
-      printWindow.onafterprint = () => {
-        if (!printWindow.closed) printWindow.close();
-        finish();
-      };
+      win.focus();
+      win.print();
+      win.onafterprint = finish;
     };
 
-    printWindow.addEventListener("load", () => setTimeout(runPrint, 250), {
-      once: true,
-    });
-    setTimeout(runPrint, 600);
+    iframe.onload = () => setTimeout(runPrint, 300);
+    iframe.onerror = () => {
+      iframe.remove();
+      URL.revokeObjectURL(url);
+      reject(new Error("PRINT_FAILED"));
+    };
 
-    const pollClosed = window.setInterval(() => {
-      if (printWindow.closed) {
-        window.clearInterval(pollClosed);
-        finish();
-      }
-    }, 400);
+    iframe.src = url;
+    setTimeout(runPrint, 800);
   });
 }
 
