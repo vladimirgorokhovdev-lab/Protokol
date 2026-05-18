@@ -114,31 +114,47 @@ const Index = () => {
     return true;
   }, [quotaBlocked, navigate]);
 
-  const checkFreeTierDuration = useCallback(
+  const checkFilesAgainstQuota = useCallback(
     async (files: File[]): Promise<boolean> => {
-      if (!isFreeTier) return true;
       const durations = await Promise.all(files.map(probeMediaDuration));
-      const idx = durations.findIndex((d) => d > FREE_MAX_DURATION_SEC);
-      if (idx >= 0) {
-        toast.error(`Файл «${files[idx].name}» длиннее 2 часов`, {
+      const totalSec = durations.reduce(
+        (sum, d) => sum + (Number.isFinite(d) && d > 0 ? d : 0),
+        0,
+      );
+
+      if (isFreeTier) {
+        const idx = durations.findIndex((d) => d > FREE_MAX_DURATION_SEC);
+        if (idx >= 0) {
+          toast.error(`Файл «${files[idx].name}» длиннее 2 часов`, {
+            description:
+              "На бесплатном тарифе доступны записи до 2 часов. Оформите подписку для длинных файлов.",
+            action: { label: "Тарифы", onClick: () => navigate("/pricing") },
+          });
+          return false;
+        }
+      }
+
+      const ok = await subscription.checkCanTranscribe(totalSec);
+      if (!ok) {
+        toast.error("Лимит по тарифу исчерпан", {
           description:
-            "На бесплатном тарифе доступны записи до 2 часов. Оформите подписку для длинных файлов.",
+            "Исчерпаны расшифровки или часы за месяц. Откройте тарифы.",
           action: { label: "Тарифы", onClick: () => navigate("/pricing") },
         });
         return false;
       }
       return true;
     },
-    [isFreeTier, navigate],
+    [isFreeTier, navigate, subscription],
   );
 
   const handleAddFiles = useCallback(
     async (files: File[], numSpeakers?: number) => {
       if (!guardQuota()) return;
-      if (!(await checkFreeTierDuration(files))) return;
+      if (!(await checkFilesAgainstQuota(files))) return;
       addFiles(files, numSpeakers);
     },
-    [addFiles, guardQuota, checkFreeTierDuration],
+    [addFiles, guardQuota, checkFilesAgainstQuota],
   );
 
   const handleOpenRecorder = useCallback(() => {
@@ -148,10 +164,10 @@ const Index = () => {
 
   const handleRecordingComplete = useCallback(
     async (file: File) => {
-      if (!(await checkFreeTierDuration([file]))) return;
+      if (!(await checkFilesAgainstQuota([file]))) return;
       addFiles([file]);
     },
-    [addFiles, checkFreeTierDuration],
+    [addFiles, checkFilesAgainstQuota],
   );
 
   useEffect(() => {

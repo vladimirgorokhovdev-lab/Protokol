@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
+import { billJobUsage } from "../_shared/billJobUsage.ts";
 import { corsHeadersForRequest, handleCorsPreflight } from "../_shared/cors.ts";
 import {
   buildElevenLabsForm,
@@ -162,6 +163,8 @@ async function processJob(
 
       if (!finalCheck) {
         console.log(`[job ${jobId}] cancelled before sync final write`);
+      } else {
+        await billJobUsage(admin, jobId);
       }
       return;
     }
@@ -238,6 +241,7 @@ Deno.serve(async (req) => {
     audio_path?: string;
     file_name?: string;
     num_speakers?: number;
+    estimated_seconds?: number;
   };
   try {
     payload = await req.json();
@@ -265,10 +269,18 @@ Deno.serve(async (req) => {
       ? payload.num_speakers
       : null;
 
+  const estimatedSeconds =
+    typeof payload.estimated_seconds === "number" &&
+    Number.isFinite(payload.estimated_seconds) &&
+    payload.estimated_seconds >= 0
+      ? Math.round(payload.estimated_seconds)
+      : 0;
+
   const { data: allowed, error: quotaErr } = await userClient.rpc(
     "can_user_transcribe",
     {
       p_user_id: user.id,
+      p_estimated_seconds: estimatedSeconds,
     },
   );
   if (quotaErr) {
@@ -276,12 +288,14 @@ Deno.serve(async (req) => {
     return jsonResponse(500, { error: "Quota check failed" }, corsHeaders);
   }
   if (!allowed) {
+    const fileTooLong = estimatedSeconds > 7200;
     return jsonResponse(
       402,
       {
         error: "quota_exceeded",
-        message:
-          "Лимит расшифровок по вашему тарифу исчерпан. Оформите подписку.",
+        message: fileTooLong
+          ? "На бесплатном тарифе доступны записи до 2 часов."
+          : "Лимит по вашему тарифу исчерпан (количество или часы). Оформите подписку.",
       },
       corsHeaders,
     );
@@ -296,6 +310,7 @@ Deno.serve(async (req) => {
       audio_path: audioPath,
       file_name: fileName,
       num_speakers: numSpeakers,
+      estimated_seconds: estimatedSeconds,
       status: "queued",
       status_message: "В очереди...",
     })

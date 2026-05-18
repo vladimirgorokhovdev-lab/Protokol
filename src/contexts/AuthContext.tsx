@@ -1,4 +1,10 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -24,21 +30,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
       if (event === "SIGNED_IN" && session?.user) {
+        void supabase.auth.signOut({ scope: "others" }).then(({ error }) => {
+          if (error) console.warn("signOut others:", error.message);
+        });
+
         const key = `last_login_logged_${session.user.id}`;
         const today = new Date().toISOString().slice(0, 10);
-        if (typeof window !== "undefined" && window.localStorage.getItem(key) !== today) {
+        if (
+          typeof window !== "undefined" &&
+          window.localStorage.getItem(key) !== today
+        ) {
           window.localStorage.setItem(key, today);
           setTimeout(() => {
-            supabase.from("user_events").insert({
-              user_id: session.user.id,
-              event_type: "login",
-              metadata: { path: typeof window !== "undefined" ? window.location.pathname : null },
-            }).then(({ error }) => { if (error) console.warn("login event:", error.message); });
+            supabase
+              .from("user_events")
+              .insert({
+                user_id: session.user.id,
+                event_type: "login",
+                metadata: {
+                  path:
+                    typeof window !== "undefined"
+                      ? window.location.pathname
+                      : null,
+                },
+              })
+              .then(({ error }) => {
+                if (error) console.warn("login event:", error.message);
+              });
           }, 0);
         }
       }

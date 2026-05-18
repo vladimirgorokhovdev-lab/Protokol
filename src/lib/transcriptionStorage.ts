@@ -125,14 +125,6 @@ export async function saveTranscription(
     }
   }
 
-  if (teamId) {
-    const { error: usageErr } = await supabase.rpc("increment_team_usage", {
-      p_team_id: teamId,
-      p_seconds: Math.round(duration),
-    });
-    if (usageErr) console.error("Failed to increment team usage:", usageErr);
-  }
-
   return transcription.id;
 }
 

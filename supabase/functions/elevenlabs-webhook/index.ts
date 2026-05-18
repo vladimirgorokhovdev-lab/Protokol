@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { billJobUsage } from "../_shared/billJobUsage.ts";
 import {
   convertToSegments,
   type ElevenLabsTranscription,
@@ -139,6 +140,8 @@ Deno.serve(async (req) => {
   console.log(
     `[elevenlabs-webhook] job ${jobId} done, ${segments.length} segments`,
   );
+
+  await billJobUsage(supabase, jobId);
 
   return new Response(JSON.stringify({ received: true }), {
     status: 200,

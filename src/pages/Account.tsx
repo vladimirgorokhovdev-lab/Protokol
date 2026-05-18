@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Crown, Zap, Shield, CreditCard, Calendar, CheckCircle2, Clock, XCircle, Loader2, User as UserIcon, LogOut, RefreshCw, CalendarClock, CalendarX, AlertCircle, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSubscription, TIER_LIMITS } from "@/hooks/useSubscription";
+import {
+  useSubscription,
+  TIER_LIMITS,
+  formatHoursFromSeconds,
+} from "@/hooks/useSubscription";
 import { useTeam } from "@/hooks/useTeam";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -291,10 +295,27 @@ export default function Account() {
   const periodStart = formatPeriodEnd(sub.periodStart);
   const periodEnd = formatPeriodEnd(sub.periodEnd);
 
-  const monthlyLimit = tierMeta.monthly === Infinity ? null : tierMeta.monthly;
-  const totalLimit = tierMeta.total === Infinity ? null : tierMeta.total;
-  const monthlyPct = monthlyLimit ? Math.min(100, (sub.monthlyUsed / monthlyLimit) * 100) : 0;
-  const totalPct = totalLimit ? Math.min(100, (sub.totalUsed / totalLimit) * 100) : 0;
+  const monthlyLimit =
+    tierMeta.monthly === null || tierMeta.monthly === undefined
+      ? null
+      : tierMeta.monthly;
+  const totalLimit =
+    tierMeta.total === null || tierMeta.total === undefined
+      ? null
+      : tierMeta.total;
+  const monthlyHoursLimit = tierMeta.monthlyHours;
+  const monthlyPct = monthlyLimit
+    ? Math.min(100, (sub.monthlyUsed / monthlyLimit) * 100)
+    : 0;
+  const totalPct = totalLimit
+    ? Math.min(100, (sub.totalUsed / totalLimit) * 100)
+    : 0;
+  const monthlyHoursPct = monthlyHoursLimit
+    ? Math.min(
+        100,
+        (sub.monthlySecondsUsed / (monthlyHoursLimit * 3600)) * 100,
+      )
+    : 0;
 
   const isActivePaid = sub.tier !== "free" && sub.status === "active";
 
@@ -446,7 +467,21 @@ export default function Account() {
                 </div>
               )}
 
-              {monthlyLimit === null && totalLimit === null && (
+              {monthlyHoursLimit !== null && (
+                <div>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="text-muted-foreground">Часов в этом месяце</span>
+                    <span className="font-medium text-foreground">
+                      {formatHoursFromSeconds(sub.monthlySecondsUsed)} / {monthlyHoursLimit} ч
+                    </span>
+                  </div>
+                  <Progress value={monthlyHoursPct} className="h-2" />
+                </div>
+              )}
+
+              {monthlyLimit === null &&
+                totalLimit === null &&
+                monthlyHoursLimit === null && (
                 <div className="text-sm text-muted-foreground">
                   Без ограничений по количеству расшифровок. Использовано всего:{" "}
                   <span className="font-medium text-foreground">{sub.totalUsed}</span>.

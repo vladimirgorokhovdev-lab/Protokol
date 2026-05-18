@@ -46,7 +46,6 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          // Должен совпадать с Redirect URLs в Supabase (корень + /auth надёжнее явно указать).
           options: {
             emailRedirectTo: `${window.location.origin}/auth`,
           },

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { TIER_LIMITS } from "@/lib/tierLimits";
 import { useAuth } from "@/contexts/AuthContext";
 
 export interface TeamMember {
@@ -73,7 +74,7 @@ export function useTeam(): UseTeamResult {
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [monthlyUsed, setMonthlyUsed] = useState(0);
   const [monthlySecondsUsed, setMonthlySecondsUsed] = useState(0);
-  const monthlyHoursLimit = 100;
+  const monthlyHoursLimit = TIER_LIMITS.team.monthlyHours ?? 100;
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {

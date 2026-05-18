@@ -10,6 +10,7 @@ import {
   saveTranscription,
   updateSpeakerNames,
 } from "@/lib/transcriptionStorage";
+import { billMyTranscriptionJob } from "@/lib/billTranscriptionJob";
 import { showTranscriptionDoneNotification } from "@/lib/notifications";
 import { toast } from "sonner";
 import type { TranscriptSegment } from "@/lib/transcript";
@@ -99,7 +100,11 @@ export function useTranscriptionQueue() {
           file,
           controller.signal,
           callbacks,
-          numSpeakers ? { numSpeakers } : undefined,
+          {
+            ...(numSpeakers ? { numSpeakers } : {}),
+            estimatedSeconds:
+              durationSec > 0 ? Math.round(durationSec) : 0,
+          },
         );
 
         if (segments.length === 0) {
@@ -121,6 +126,7 @@ export function useTranscriptionQueue() {
             .update({ transcription_id: dbId })
             .eq("id", jobId);
         }
+        if (jobId) await billMyTranscriptionJob(jobId);
 
         updateItem(id, {
           status: "done",
@@ -138,14 +144,6 @@ export function useTranscriptionQueue() {
           const lastEnd =
             segments.length > 0 ? segments[segments.length - 1].endTime : 0;
           const seconds = Math.max(0, Math.round(lastEnd));
-          supabase
-            .rpc("increment_transcription_usage", {
-              p_user_id: user.id,
-              p_seconds: seconds,
-            })
-            .then(({ error }) => {
-              if (error) console.error("Usage increment error:", error);
-            });
           supabase
             .from("user_events")
             .insert({
@@ -281,6 +279,7 @@ export function useTranscriptionQueue() {
                 .from("transcription_jobs")
                 .update({ transcription_id: dbId })
                 .eq("id", job.id);
+              await billMyTranscriptionJob(job.id);
               updateItem(localId, {
                 status: "done",
                 segments: segs,
@@ -322,6 +321,7 @@ export function useTranscriptionQueue() {
                   .update({ transcription_id: dbId })
                   .eq("id", job.id);
               }
+              await billMyTranscriptionJob(job.id);
               updateItem(localId, {
                 status: "done",
                 segments: segs,

@@ -76,8 +76,8 @@ const AISummaryPanel = ({
   onSummaryData,
   transcriptionId,
 }: AISummaryPanelProps) => {
-  const { tier, loading: subLoading } = useSubscription();
-  const isPro = tier === "pro";
+  const { canUseAiSummary, loading: subLoading } = useSubscription();
+  const hasAiAccess = canUseAiSummary;
   const [data, setData] = useState<AISummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -109,11 +109,11 @@ const AISummaryPanel = ({
   }, [transcriptionId]);
 
   const analyze = async () => {
-    if (!isPro) {
+    if (!hasAiAccess) {
       toast({
-        title: "Доступно в тарифе «Про»",
+        title: "Доступно в тарифах «Про» и «Команда»",
         description:
-          "AI-резюме входит в тариф «Про». Откройте раздел тарифов, чтобы оформить подписку.",
+          "AI-резюме входит в тарифы «Про» и «Команда». Откройте раздел тарифов.",
       });
       return;
     }
@@ -151,15 +151,15 @@ const AISummaryPanel = ({
     setSectionsOpen((prev) => ({ ...prev, [key]: !prev[key] }));
 
   if (!data) {
-    if (!subLoading && !isPro) {
+    if (!subLoading && !hasAiAccess) {
       return (
         <Link
           to="/pricing"
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-gold/20 to-gold/10 border border-gold/30 hover:border-gold/50 text-gold transition-all text-sm font-medium"
-          title="AI-резюме доступно в тарифе «Про»"
+          title="AI-резюме доступно в тарифах «Про» и «Команда»"
         >
           <Lock className="w-4 h-4" />
-          AI-резюме · тариф «Про»
+          AI-резюме · «Про» / «Команда»
         </Link>
       );
     }

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeam } from "@/hooks/useTeam";
-import { useSubscription } from "@/hooks/useSubscription";
+import { useSubscription, formatHoursFromSeconds } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -272,8 +272,8 @@ export default function Team() {
                 <CardDescription className="mt-2">
                   Командный тариф · {team.members.length}/{memberLimit}{" "}
                   участников · Использовано в этом месяце:{" "}
-                  {(team.monthlySecondsUsed / 3600).toFixed(1)}/
-                  {team.monthlyHoursLimit} часов (общий пул команды)
+                  {formatHoursFromSeconds(team.monthlySecondsUsed)} /{" "}
+                  {team.monthlyHoursLimit} ч (общий пул команды)
                 </CardDescription>
               </div>
             </div>

@@ -556,6 +556,7 @@ export type Database = {
           audio_path: string;
           created_at: string;
           error: string | null;
+          estimated_seconds: number;
           file_name: string;
           id: string;
           num_speakers: number | null;
@@ -564,12 +565,14 @@ export type Database = {
           status_message: string | null;
           transcription_id: string | null;
           updated_at: string;
+          usage_billed_at: string | null;
           user_id: string;
         };
         Insert: {
           audio_path: string;
           created_at?: string;
           error?: string | null;
+          estimated_seconds?: number;
           file_name: string;
           id?: string;
           num_speakers?: number | null;
@@ -578,12 +581,14 @@ export type Database = {
           status_message?: string | null;
           transcription_id?: string | null;
           updated_at?: string;
+          usage_billed_at?: string | null;
           user_id: string;
         };
         Update: {
           audio_path?: string;
           created_at?: string;
           error?: string | null;
+          estimated_seconds?: number;
           file_name?: string;
           id?: string;
           num_speakers?: number | null;
@@ -592,6 +597,7 @@ export type Database = {
           status_message?: string | null;
           transcription_id?: string | null;
           updated_at?: string;
+          usage_billed_at?: string | null;
           user_id?: string;
         };
         Relationships: [];
@@ -843,8 +849,28 @@ export type Database = {
       };
       admin_team_detail: { Args: { p_team_id: string }; Returns: Json };
       admin_user_card: { Args: { p_email: string }; Returns: Json };
+      apply_team_usage: {
+        Args: { p_seconds?: number; p_team_id: string };
+        Returns: undefined;
+      };
+      apply_transcription_usage: {
+        Args: { p_seconds?: number; p_user_id: string };
+        Returns: undefined;
+      };
       approve_user: { Args: { _user_id: string }; Returns: undefined };
-      can_user_transcribe: { Args: { p_user_id: string }; Returns: boolean };
+      bill_my_transcription_job: {
+        Args: { p_job_id: string };
+        Returns: boolean;
+      };
+      bill_transcription_job: {
+        Args: { p_job_id: string };
+        Returns: boolean;
+      };
+      can_user_transcribe: {
+        Args: { p_user_id: string; p_estimated_seconds?: number };
+        Returns: boolean;
+      };
+      can_use_ai_summary: { Args: { p_user_id: string }; Returns: boolean };
       current_user_email: { Args: never; Returns: string };
       get_auth_user_count: { Args: never; Returns: number };
       get_feedback_with_email: {

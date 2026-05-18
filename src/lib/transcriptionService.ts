@@ -31,7 +31,7 @@ export async function transcribeAudio(
   file: File,
   signal: AbortSignal,
   callbacks?: TranscriptionCallbacks,
-  options?: { numSpeakers?: number },
+  options?: { numSpeakers?: number; estimatedSeconds?: number },
 ): Promise<TranscribeResult> {
   const {
     data: { user },
@@ -52,10 +52,17 @@ export async function transcribeAudio(
   callbacks?.onUploadProgress?.(100);
   callbacks?.onStatus?.("Создание задачи...");
 
+  const estimatedSeconds =
+    typeof options?.estimatedSeconds === "number" &&
+    Number.isFinite(options.estimatedSeconds)
+      ? Math.max(0, Math.round(options.estimatedSeconds))
+      : 0;
+
   const invokeBody = {
     audio_path: audioPath,
     file_name: file.name,
     num_speakers: options?.numSpeakers,
+    estimated_seconds: estimatedSeconds,
   };
 
   let invokeData: unknown = null;

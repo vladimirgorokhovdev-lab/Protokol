@@ -14,9 +14,6 @@ Deno.serve(async (req) => {
       return new Response("Invalid payload", { status: 400 });
     }
 
-    // SECURITY: Verify the event by re-fetching the payment from YooKassa.
-    // This ensures the request is genuine — attackers cannot forge results
-    // because they don't have shop credentials.
     const shopId = Deno.env.get("YOOKASSA_SHOP_ID");
     const secretKey = Deno.env.get("YOOKASSA_SECRET_KEY");
     if (!shopId || !secretKey) {
@@ -38,7 +35,6 @@ Deno.serve(async (req) => {
 
     if (!verifyResp.ok) {
       console.error("Payment verification failed:", verifyResp.status);
-      // Return 200 to avoid retries on permanently invalid payloads
       return new Response("OK", { status: 200 });
     }
 
@@ -77,9 +73,7 @@ Deno.serve(async (req) => {
         ? verified.payment_method?.id
         : verified.payment_method?.id;
 
-      // ===== TEAM tier: создаём команду при первой оплате =====
       if (tier === "team") {
-        // Проверяем, есть ли уже команда у пользователя как владельца
         const { data: existingMembership } = await supabase
           .from("team_members")
           .select("team_id, role")
