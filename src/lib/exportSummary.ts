@@ -1,6 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle } from "docx";
 import { saveAs } from "file-saver";
 import type { AISummaryExport } from "@/components/ExportDialog";
+import { printHtmlDocument, textToHtmlParagraphs } from "@/lib/exportPdf";
 
 
 const SENTIMENT_LABELS: Record<string, string> = {
@@ -107,7 +108,7 @@ export async function exportSummaryToDocx(ai: AISummaryExport) {
   saveAs(buffer, "ai_summary.docx");
 }
 
-export function exportSummaryToPdf(ai: AISummaryExport) {
+export async function exportSummaryToPdf(ai: AISummaryExport) {
   const date = new Date().toLocaleDateString("ru-RU");
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -132,22 +133,11 @@ export function exportSummaryToPdf(ai: AISummaryExport) {
     <div class="divider"></div>
     <div class="sentiment"><b>Тон обсуждения:</b> <i>${esc(SENTIMENT_LABELS[ai.sentiment] || ai.sentiment)}</i></div>
     <div class="section-title">Резюме</div>
-    <div class="summary">${esc(ai.summary)}</div>
+    ${textToHtmlParagraphs(ai.summary)}
     ${ai.keyPoints.length ? `<div class="section-title">Ключевые моменты</div><ul>${ai.keyPoints.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
     ${ai.actionItems.length ? `<div class="section-title">Задачи и поручения</div><ul>${ai.actionItems.map(a => `<li>${esc(a.task)}${a.assignee ? ` <span class="assignee">— ${esc(a.assignee)}</span>` : ""}</li>`).join("")}</ul>` : ""}
     <div class="footer">Сформировано в ПротоколЪ · ${date}</div>
   </body></html>`;
 
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const iframe = document.createElement("iframe");
-  iframe.style.cssText = "position:fixed;left:-9999px;width:210mm;height:297mm";
-  document.body.appendChild(iframe);
-  iframe.src = url;
-  iframe.onload = () => {
-    setTimeout(() => {
-      try { iframe.contentWindow?.print(); } catch { window.open(url, "_blank"); }
-      setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url); }, 1000);
-    }, 300);
-  };
+  await printHtmlDocument(html);
 }

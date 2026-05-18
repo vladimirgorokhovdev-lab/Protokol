@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy:function:contact-send": "npx supabase functions deploy contact-send --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt",
+    "deploy:functions:all": "npx supabase functions deploy elevenlabs-transcribe --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy elevenlabs-webhook --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt && npx supabase functions deploy ai-summary --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy yookassa-webhook --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy merge-audio --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy contact-send --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

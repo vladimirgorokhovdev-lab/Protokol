@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
-import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from "@/lib/siteContact";
+import { SUPPORT_EMAIL } from "@/lib/siteContact";
 
 const Privacy = () => {
   return (
@@ -259,7 +259,7 @@ const Privacy = () => {
           <section>
             <h2 className="text-xl font-semibold text-foreground font-playfair">17. Заключительные положения</h2>
             <p>17.1. Оператор имеет право вносить изменения в настоящую Политику. Новая редакция Политики вступает в силу с момента её размещения на сайте Сервиса, если иное не предусмотрено новой редакцией Политики.</p>
-            <p>17.2. Действующая редакция Политики постоянно доступна на странице Сервиса по адресу: <a href={PRIVACY_POLICY_URL} className="text-primary font-medium hover:underline">{PRIVACY_POLICY_URL}</a>.</p>
+            <p>17.2. Действующая редакция Политики постоянно доступна на странице Сервиса по адресу: <a href="/privacy" className="text-primary font-medium hover:underline">https://протоколъ.рф/privacy</a>.</p>
             <p>17.3. По всем вопросам, связанным с обработкой персональных данных, Пользователь может обращаться по адресу электронной почты: <span className="text-primary font-medium">{SUPPORT_EMAIL}</span>.</p>
           </section>
 

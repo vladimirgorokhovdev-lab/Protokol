@@ -58,7 +58,7 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
       if (format === "docx") {
         await exportSummaryToDocx(aiSummary);
       } else {
-        exportSummaryToPdf(aiSummary);
+        await exportSummaryToPdf(aiSummary);
       }
       toast({ title: "Экспорт", description: "AI-резюме сформировано" });
     } catch (e) {

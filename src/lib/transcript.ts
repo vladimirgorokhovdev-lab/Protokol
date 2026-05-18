@@ -69,6 +69,17 @@ export function normalizeSegmentText(text: string): string {
     .trim();
 }
 
+/** Для экспорта: сохраняет абзацы и переносы строк */
+export function formatSegmentTextForExport(text: string): string {
+  return (text ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function convertWordsToSegments(
   data: RawTranscriptionResponse,
 ): TranscriptSegment[] {
