@@ -8,7 +8,7 @@ import {
 } from "docx";
 import { saveAs } from "file-saver";
 import type { TranscriptSegment } from "@/lib/transcript";
-import { normalizeSegmentText } from "@/lib/transcript";
+import { formatSegmentTextForExport } from "@/lib/transcript";
 import {
   type TemplateType,
   getTemplate,
@@ -21,6 +21,38 @@ const formatTime = (seconds: number) => {
   const s = Math.floor(seconds % 60);
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 };
+
+function pushJustifiedParagraphs(children: Paragraph[], text: string) {
+  const formatted = formatSegmentTextForExport(text);
+  const parts = formatted.split(/\n\n+/).map((p) => p.replace(/\n/g, " ").trim()).filter(Boolean);
+  if (parts.length === 0) {
+    children.push(
+      new Paragraph({
+        spacing: { after: 120 },
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: 720 },
+        children: [new TextRun({ text: "", size: 22, font: "Times New Roman" })],
+      }),
+    );
+    return;
+  }
+  for (const part of parts) {
+    children.push(
+      new Paragraph({
+        spacing: { after: 120 },
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: 720 },
+        children: [
+          new TextRun({
+            text: part,
+            size: 22,
+            font: "Times New Roman",
+          }),
+        ],
+      }),
+    );
+  }
+}
 
 const NAVY = "1B3A5C";
 const GOLD_ACCENT = "C9A84C";
@@ -123,20 +155,7 @@ export async function exportToDocx(
         ],
       }),
     );
-    children.push(
-      new Paragraph({
-        spacing: { after: 100 },
-        alignment: AlignmentType.JUSTIFIED,
-        indent: { firstLine: 720 },
-        children: [
-          new TextRun({
-            text: aiSummary.summary,
-            size: 22,
-            font: "Times New Roman",
-          }),
-        ],
-      }),
-    );
+    pushJustifiedParagraphs(children, aiSummary.summary);
     if (aiSummary.keyPoints.length) {
       children.push(
         new Paragraph({
@@ -260,20 +279,7 @@ export async function exportToDocx(
         children: headerRuns,
       }),
     );
-    children.push(
-      new Paragraph({
-        spacing: { after: 120 },
-        alignment: AlignmentType.JUSTIFIED,
-        indent: { firstLine: 720 },
-        children: [
-          new TextRun({
-            text: normalizeSegmentText(segment.text),
-            size: 22,
-            font: "Times New Roman",
-          }),
-        ],
-      }),
-    );
+    pushJustifiedParagraphs(children, segment.text);
   }
 
   children.push(

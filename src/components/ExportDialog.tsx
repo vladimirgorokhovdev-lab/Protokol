@@ -24,7 +24,7 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>("court");
   const [exporting, setExporting] = useState(false);
   const [includeSummary, setIncludeSummary] = useState(false);
-  const [includeTimecodes, setIncludeTimecodes] = useState(false);
+  const [includeTimecodes, setIncludeTimecodes] = useState(true);
   const [pendingFormat, setPendingFormat] = useState<"docx" | "pdf" | null>(null);
 
   const runExport = async (format: "docx" | "pdf") => {
@@ -36,10 +36,22 @@ const ExportDialog = ({ segments, onClose, aiSummary }: ExportDialogProps) => {
       } else {
         await exportToPdf(segments, `protocol_${selectedTemplate}.pdf`, selectedTemplate, summaryData, includeTimecodes);
       }
-      toast({ title: "Экспорт", description: `Файл .${format} сформирован` });
+      if (format === "pdf") {
+        toast({
+          title: "Печать протокола",
+          description:
+            "Откроется вкладка с документом. В настройках печати отключите «Колонтитулы», затем «Сохранить как PDF».",
+        });
+      } else {
+        toast({ title: "Экспорт", description: "Файл .docx сформирован" });
+      }
       onClose();
     } catch (e) {
-      toast({ title: "Ошибка", description: "Не удалось экспортировать", variant: "destructive" });
+      const msg =
+        e instanceof Error && e.message === "POPUP_BLOCKED"
+          ? "Разрешите всплывающие окна для сайта — иначе PDF не откроется"
+          : "Не удалось экспортировать";
+      toast({ title: "Ошибка", description: msg, variant: "destructive" });
     } finally {
       setExporting(false);
       setPendingFormat(null);

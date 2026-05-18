@@ -74,8 +74,19 @@ const PRINT_STYLES = `
   .ai-section ul { margin: 0 0 8pt 20pt; padding: 0; }
   .ai-section li { margin-bottom: 4pt; font-size: 11pt; text-align: justify; }
   .assignee { color: #666; font-style: italic; }
+  .print-hint {
+    margin-bottom: 16pt;
+    padding: 10pt 12pt;
+    border: 1px solid #c9a84c;
+    background: #fffbeb;
+    font-size: 10pt;
+    line-height: 1.4;
+    text-align: left;
+    text-indent: 0;
+  }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .print-hint { display: none !important; }
   }
 `;
 
@@ -103,49 +114,36 @@ export function textToHtmlParagraphs(text: string): string {
     .join("");
 }
 
+/** Печать только HTML протокола (отдельная вкладка — без колонтитулов /history) */
 export function printHtmlDocument(html: string): Promise<void> {
-  return new Promise((resolve) => {
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("title", "Экспорт PDF");
-    iframe.style.cssText =
-      "position:fixed;left:0;top:0;width:0;height:0;border:0;visibility:hidden;";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-    if (!doc) {
-      document.body.removeChild(iframe);
-      resolve();
+  return new Promise((resolve, reject) => {
+    const printWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      reject(new Error("POPUP_BLOCKED"));
       return;
     }
 
-    doc.open();
-    doc.write(html);
-    doc.close();
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
 
-    const print = () => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch {
-        const w = window.open("", "_blank");
-        if (w) {
-          w.document.write(html);
-          w.document.close();
-          w.focus();
-          w.print();
+    const runPrint = () => {
+      printWindow.focus();
+      printWindow.print();
+
+      const finish = () => {
+        if (!printWindow.closed) {
+          printWindow.close();
         }
-      }
-      setTimeout(() => {
-        document.body.removeChild(iframe);
         resolve();
-      }, 1000);
+      };
+
+      printWindow.onafterprint = finish;
+      setTimeout(finish, 60_000);
     };
 
-    if (doc.readyState === "complete") {
-      setTimeout(print, 250);
-    } else {
-      iframe.onload = () => setTimeout(print, 250);
-    }
+    printWindow.onload = () => setTimeout(runPrint, 350);
+    setTimeout(runPrint, 350);
   });
 }
 
@@ -168,6 +166,9 @@ export async function exportToPdf(
 <style>${PRINT_STYLES}</style>
 </head>
 <body>
+  <div class="print-hint">
+    При сохранении в PDF отключите «Колонтитулы» / Headers and footers в настройках печати браузера.
+  </div>
   <div class="title">${escapeHtml(template.title)}</div>
   <div class="date">Дата формирования: ${escapeHtml(meta.date)}</div>
   <div class="divider"></div>
