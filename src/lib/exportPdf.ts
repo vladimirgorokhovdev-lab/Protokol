@@ -114,36 +114,56 @@ export function textToHtmlParagraphs(text: string): string {
     .join("");
 }
 
-/** Печать только HTML протокола (отдельная вкладка — без колонтитулов /history) */
+/** Печать HTML протокола в отдельной вкладке (blob URL — не about:blank) */
 export function printHtmlDocument(html: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const printWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const printWindow = window.open(url, "_blank");
     if (!printWindow) {
+      URL.revokeObjectURL(url);
       reject(new Error("POPUP_BLOCKED"));
       return;
     }
 
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    let printed = false;
+    let done = false;
 
-    const runPrint = () => {
-      printWindow.focus();
-      printWindow.print();
-
-      const finish = () => {
-        if (!printWindow.closed) {
-          printWindow.close();
-        }
-        resolve();
-      };
-
-      printWindow.onafterprint = finish;
-      setTimeout(finish, 60_000);
+    const finish = () => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      resolve();
     };
 
-    printWindow.onload = () => setTimeout(runPrint, 350);
-    setTimeout(runPrint, 350);
+    const runPrint = () => {
+      if (printed) return;
+      try {
+        if (printWindow.document?.readyState !== "complete") return;
+      } catch {
+        return;
+      }
+      printed = true;
+      printWindow.focus();
+      printWindow.print();
+      printWindow.onafterprint = () => {
+        if (!printWindow.closed) printWindow.close();
+        finish();
+      };
+    };
+
+    printWindow.addEventListener("load", () => setTimeout(runPrint, 250), {
+      once: true,
+    });
+    setTimeout(runPrint, 600);
+
+    const pollClosed = window.setInterval(() => {
+      if (printWindow.closed) {
+        window.clearInterval(pollClosed);
+        finish();
+      }
+    }, 400);
   });
 }
 
