@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isEmailConfirmed } from "@/lib/authEmail";
 import { EmailOtpForm } from "@/components/EmailOtpForm";
 
+const PENDING_CONFIRM_KEY = "pending_confirm_email";
+
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -20,17 +22,59 @@ const Auth = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
 
+  const openConfirmScreen = (addr: string) => {
+    setEmail(addr);
+    setPendingConfirmEmail(addr);
+    sessionStorage.setItem(PENDING_CONFIRM_KEY, addr);
+  };
+
+  const closeConfirmScreen = () => {
+    setPendingConfirmEmail(null);
+    sessionStorage.removeItem(PENDING_CONFIRM_KEY);
+  };
+
   useEffect(() => {
     const confirmEmail = searchParams.get("confirm_email");
     if (confirmEmail) {
-      setPendingConfirmEmail(confirmEmail);
-      setEmail(confirmEmail);
+      openConfirmScreen(confirmEmail);
+      return;
     }
+    const stored = sessionStorage.getItem(PENDING_CONFIRM_KEY);
+    if (stored) openConfirmScreen(stored);
   }, [searchParams]);
 
   useEffect(() => {
-    if (user && isEmailConfirmed(user)) navigate("/", { replace: true });
+    if (user && isEmailConfirmed(user)) {
+      closeConfirmScreen();
+      navigate("/", { replace: true });
+      return;
+    }
+    if (user?.email && !isEmailConfirmed(user)) {
+      openConfirmScreen(user.email);
+    }
   }, [user, navigate]);
+
+  const handleResendConfirm = async () => {
+    const addr = pendingConfirmEmail ?? email;
+    if (!addr) return;
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: addr,
+      options: { emailRedirectTo: `${window.location.origin}/auth` },
+    });
+    if (error) {
+      toast({
+        title: "Не удалось отправить",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Письмо отправлено снова",
+      description: `Код и ссылка — на ${addr}`,
+    });
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,25 +100,14 @@ const Auth = () => {
         if (error) {
           const msg = error.message.toLowerCase();
           if (msg.includes("email not confirmed") || msg.includes("not verified")) {
-            setPendingConfirmEmail(email);
-            toast({
-              title: "Подтвердите email",
-              description:
-                "Введите код из письма ниже или перейдите по ссылке в письме.",
-              variant: "destructive",
-            });
+            openConfirmScreen(email);
             return;
           }
           throw error;
         }
         const { data: { user: signedIn } } = await supabase.auth.getUser();
         if (signedIn && !isEmailConfirmed(signedIn)) {
-          setPendingConfirmEmail(email);
-          toast({
-            title: "Подтвердите email",
-            description: "Введите код из письма ниже или перейдите по ссылке.",
-            variant: "destructive",
-          });
+          openConfirmScreen(email);
           return;
         }
         navigate("/");
@@ -90,11 +123,7 @@ const Auth = () => {
         if (data.session) {
           navigate("/");
         } else {
-          setPendingConfirmEmail(email);
-          toast({
-            title: "Проверьте почту",
-            description: `Код и ссылка отправлены на ${email}. Введите код ниже или откройте ссылку в письме.`,
-          });
+          openConfirmScreen(email);
         }
       }
     } catch (error: unknown) {
@@ -164,26 +193,37 @@ const Auth = () => {
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
           {pendingConfirmEmail ? (
             <div className="space-y-4">
-              <h2 className="text-base font-semibold text-foreground text-center">
-                Код из письма
-              </h2>
+              <p className="text-sm text-center text-muted-foreground">
+                Почти готово. Введите код из письма —{" "}
+                <strong className="text-foreground">входить снова не нужно</strong>
+                , вы сразу попадёте в сервис.
+              </p>
               <EmailOtpForm
                 email={pendingConfirmEmail}
-                onSuccess={() => navigate("/", { replace: true })}
+                onSuccess={() => {
+                  closeConfirmScreen();
+                  navigate("/", { replace: true });
+                }}
               />
               <p className="text-xs text-center text-muted-foreground">
-                Или нажмите «Перейти по ссылке» в письме — вход выполнится
-                автоматически.
+                Или нажмите «Перейти по ссылке» в письме.
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setPendingConfirmEmail(null);
-                  setIsLogin(true);
-                }}
+                onClick={handleResendConfirm}
                 className="w-full text-sm text-gold-dark hover:underline"
               >
-                Назад к входу
+                Отправить письмо снова
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeConfirmScreen();
+                  setIsLogin(true);
+                }}
+                className="w-full text-xs text-muted-foreground hover:underline"
+              >
+                Другой email / войти
               </button>
             </div>
           ) : (
@@ -339,12 +379,12 @@ const Auth = () => {
             </button>
           </p>
 
-          {isLogin && email && (
+          {email.includes("@") && (
             <p className="text-center text-sm text-muted-foreground">
-              Уже есть код из письма?{" "}
+              Есть код из письма?{" "}
               <button
                 type="button"
-                onClick={() => setPendingConfirmEmail(email)}
+                onClick={() => openConfirmScreen(email)}
                 className="text-gold-dark hover:underline font-medium"
               >
                 Ввести код
