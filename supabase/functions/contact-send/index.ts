@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { corsHeadersForRequest, handleCorsPreflight } from "../_shared/cors.ts";
 import { SITE_NAME, SUPPORT_EMAIL } from "../_shared/siteContact.ts";
+import { sendSmtpMail } from "../_shared/smtp.ts";
 
 const MAX_NAME = 200;
 const MAX_EMAIL = 254;
@@ -27,18 +27,7 @@ async function sendContactEmail(params: {
   email: string;
   message: string;
 }): Promise<void> {
-  const host = Deno.env.get("SMTP_HOST") ?? "mail.hosting.reg.ru";
-  const port = Number(Deno.env.get("SMTP_PORT") ?? "465");
-  const user = Deno.env.get("SMTP_USER");
-  const password = Deno.env.get("SMTP_PASSWORD");
-  const to = Deno.env.get("CONTACT_TO") ?? SUPPORT_EMAIL;
-  const from = Deno.env.get("SMTP_FROM") ?? user ?? SUPPORT_EMAIL;
-
-  if (!user || !password) {
-    throw new Error(
-      "SMTP не настроен: задайте SMTP_USER и SMTP_PASSWORD в секретах Supabase",
-    );
-  }
+  const to = Deno.env.get("CONTACT_TO") ?? Deno.env.get("SMTP_FROM") ?? SUPPORT_EMAIL;
 
   const subject = `[${SITE_NAME}] Сообщение с сайта от ${params.name}`;
   const text = [
@@ -59,27 +48,13 @@ async function sendContactEmail(params: {
     <pre style="white-space:pre-wrap;font-family:sans-serif">${escapeHtml(params.message)}</pre>
   `.trim();
 
-  const client = new SMTPClient({
-    connection: {
-      hostname: host,
-      port,
-      tls: true,
-      auth: { username: user, password },
-    },
+  await sendSmtpMail({
+    to,
+    subject,
+    text,
+    html,
+    replyTo: params.email,
   });
-
-  try {
-    await client.send({
-      from,
-      to,
-      replyTo: params.email,
-      subject,
-      content: text,
-      html,
-    });
-  } finally {
-    await client.close();
-  }
 }
 
 Deno.serve(async (req) => {
