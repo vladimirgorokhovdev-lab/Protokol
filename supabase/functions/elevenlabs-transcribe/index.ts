@@ -174,7 +174,7 @@ async function processJob(
       console.log(`[job ${jobId}] webhook accepted, request_id=${requestId}`);
       await updateJob({
         status: "processing",
-        status_message: "Ожидание результата от ElevenLabs…",
+        status_message: "Ожидание результата расшифровки...",
         error: null,
       });
       return;
@@ -237,6 +237,25 @@ Deno.serve(async (req) => {
   if (authErr || !user)
     return jsonResponse(401, { error: "Unauthorized" }, corsHeaders);
 
+  const emailConfirmed =
+    Boolean(user.email_confirmed_at) ||
+    user.app_metadata?.email_verified === true ||
+    (Array.isArray(user.app_metadata?.providers) &&
+      (user.app_metadata.providers as string[]).some((p) =>
+        ["google", "apple", "github"].includes(p)
+      ));
+  if (!emailConfirmed) {
+    return jsonResponse(
+      403,
+      {
+        error: "email_not_confirmed",
+        message:
+          "Подтвердите email по ссылке из письма. Без подтверждения расшифровка недоступна.",
+      },
+      corsHeaders,
+    );
+  }
+
   let payload: {
     audio_path?: string;
     file_name?: string;
@@ -288,6 +307,20 @@ Deno.serve(async (req) => {
     return jsonResponse(500, { error: "Quota check failed" }, corsHeaders);
   }
   if (!allowed) {
+    const { data: emailOk } = await userClient.rpc("is_auth_email_confirmed", {
+      p_user_id: user.id,
+    });
+    if (emailOk === false) {
+      return jsonResponse(
+        403,
+        {
+          error: "email_not_confirmed",
+          message:
+            "Подтвердите email по ссылке из письма. Без подтверждения расшифровка недоступна.",
+        },
+        corsHeaders,
+      );
+    }
     const fileTooLong = estimatedSeconds > 7200;
     return jsonResponse(
       402,

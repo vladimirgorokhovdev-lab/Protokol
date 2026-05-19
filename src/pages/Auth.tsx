@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Scale, Mail, Lock, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { isEmailConfirmed } from "@/lib/authEmail";
 import { useEffect } from "react";
 
 const Auth = () => {
@@ -16,7 +17,7 @@ const Auth = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user) navigate("/", { replace: true });
+    if (user && isEmailConfirmed(user)) navigate("/", { replace: true });
   }, [user, navigate]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -40,10 +41,31 @@ const Auth = () => {
           email,
           password,
         });
-        if (error) throw error;
+        if (error) {
+          const msg = error.message.toLowerCase();
+          if (msg.includes("email not confirmed") || msg.includes("not verified")) {
+            toast({
+              title: "Подтвердите email",
+              description:
+                "Перейдите по ссылке из письма после регистрации. Можно запросить повторную отправку на главной странице.",
+              variant: "destructive",
+            });
+            return;
+          }
+          throw error;
+        }
+        const { data: { user: signedIn } } = await supabase.auth.getUser();
+        if (signedIn && !isEmailConfirmed(signedIn)) {
+          toast({
+            title: "Подтвердите email",
+            description: "Проверьте почту и перейдите по ссылке из письма.",
+            variant: "destructive",
+          });
+          return;
+        }
         navigate("/");
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -51,11 +73,15 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast({
-          title: "Регистрация",
-          description: "Аккаунт создан, можно входить через кнопку «Войти»",
-        });
-        setIsLogin(true);
+        if (data.session) {
+          navigate("/");
+        } else {
+          toast({
+            title: "Проверьте почту",
+            description: `Мы отправили ссылку для подтверждения на ${email}. Без подтверждения расшифровка недоступна.`,
+          });
+          setIsLogin(true);
+        }
       }
     } catch (error: unknown) {
       toast({

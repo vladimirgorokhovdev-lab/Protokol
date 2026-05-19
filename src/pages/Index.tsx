@@ -43,6 +43,8 @@ import { SupportSection } from "@/components/SupportSection";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
+import { isEmailConfirmed } from "@/lib/authEmail";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -98,12 +100,23 @@ const Index = () => {
   );
 
   const subscription = useSubscription();
+  const emailBlocked = Boolean(user) && !isEmailConfirmed(user);
   const quotaBlocked =
-    Boolean(user) && !subscription.loading && !subscription.canTranscribe;
+    Boolean(user) &&
+    !emailBlocked &&
+    !subscription.loading &&
+    !subscription.canTranscribe;
   const isFreeTier = !subscription.loading && subscription.tier === "free";
   const FREE_MAX_DURATION_SEC = 2 * 60 * 60;
 
   const guardQuota = useCallback((): boolean => {
+    if (emailBlocked) {
+      toast.error("Подтвердите email", {
+        description:
+          "Перейдите по ссылке из письма после регистрации. Кнопка «Отправить снова» — в жёлтой полосе сверху.",
+      });
+      return false;
+    }
     if (quotaBlocked) {
       toast.error("Лимит расшифровок по вашему тарифу исчерпан", {
         description: "Оформите подписку, чтобы продолжить.",
@@ -112,7 +125,7 @@ const Index = () => {
       return false;
     }
     return true;
-  }, [quotaBlocked, navigate]);
+  }, [emailBlocked, quotaBlocked, navigate]);
 
   const checkFilesAgainstQuota = useCallback(
     async (files: File[]): Promise<boolean> => {
@@ -492,6 +505,7 @@ const Index = () => {
         </AnimatePresence>
       </header>
 
+      <EmailVerificationBanner />
       <SubscriptionBanner />
       <main className="container max-w-5xl mx-auto px-4 py-10">
         <motion.div

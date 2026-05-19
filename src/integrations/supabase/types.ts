@@ -897,6 +897,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      is_auth_email_confirmed: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
       increment_team_usage:
         | { Args: { p_team_id: string }; Returns: undefined }
         | {
