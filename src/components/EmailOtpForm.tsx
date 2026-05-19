@@ -60,7 +60,7 @@ export function EmailOtpForm({ email, onSuccess }: EmailOtpFormProps) {
 
     toast({
       title: "Готово",
-      description: "Email подтверждён — вы вошли в аккаунт.",
+      description: "Email подтверждён.",
     });
 
     if (onSuccess) {

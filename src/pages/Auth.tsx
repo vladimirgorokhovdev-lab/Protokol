@@ -193,10 +193,11 @@ const Auth = () => {
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
           {pendingConfirmEmail ? (
             <div className="space-y-4">
+              <h2 className="text-base font-semibold text-foreground text-center">
+                Подтвердите email
+              </h2>
               <p className="text-sm text-center text-muted-foreground">
-                Почти готово. Введите код из письма —{" "}
-                <strong className="text-foreground">входить снова не нужно</strong>
-                , вы сразу попадёте в сервис.
+                Введите 8-значный код из письма.
               </p>
               <EmailOtpForm
                 email={pendingConfirmEmail}
