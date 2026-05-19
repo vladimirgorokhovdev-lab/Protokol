@@ -1,4 +1,4 @@
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import nodemailer from "npm:nodemailer@6.9.10";
 import { SITE_NAME, SUPPORT_EMAIL } from "./siteContact.ts";
 
 export type SmtpMail = {
@@ -9,13 +9,11 @@ export type SmtpMail = {
   replyTo?: string;
 };
 
-export async function sendSmtpMail(mail: SmtpMail): Promise<void> {
+function smtpTransport() {
   const host = Deno.env.get("SMTP_HOST") ?? "mail.hosting.reg.ru";
   const port = Number(Deno.env.get("SMTP_PORT") ?? "465");
   const user = Deno.env.get("SMTP_USER");
   const password = Deno.env.get("SMTP_PASSWORD");
-  const fromEmail = Deno.env.get("SMTP_FROM") ?? user ?? SUPPORT_EMAIL;
-  const fromName = Deno.env.get("SMTP_FROM_NAME") ?? SITE_NAME;
 
   if (!user || !password) {
     throw new Error(
@@ -23,30 +21,37 @@ export async function sendSmtpMail(mail: SmtpMail): Promise<void> {
     );
   }
 
-  const from =
-    fromName && fromEmail
-      ? `${fromName} <${fromEmail}>`
-      : fromEmail;
-
-  const client = new SMTPClient({
-    connection: {
-      hostname: host,
-      port,
-      tls: true,
-      auth: { username: user, password },
-    },
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass: password },
   });
+}
 
-  try {
-    await client.send({
-      from,
-      to: mail.to,
-      replyTo: mail.replyTo,
-      subject: mail.subject,
-      content: mail.text,
-      html: mail.html,
-    });
-  } finally {
-    await client.close();
-  }
+export async function sendSmtpMail(mail: SmtpMail): Promise<void> {
+  const fromEmail = Deno.env.get("SMTP_FROM") ?? Deno.env.get("SMTP_USER") ??
+    SUPPORT_EMAIL;
+  const fromName = Deno.env.get("SMTP_FROM_NAME") ?? SITE_NAME;
+  const from =
+    fromName && fromEmail ? `"${fromName}" <${fromEmail}>` : fromEmail;
+
+  const transport = smtpTransport();
+
+  await new Promise<void>((resolve, reject) => {
+    transport.sendMail(
+      {
+        from,
+        to: mail.to,
+        replyTo: mail.replyTo,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      },
+      (error) => {
+        if (error) reject(error);
+        else resolve();
+      },
+    );
+  });
 }

@@ -17,8 +17,19 @@ type HookBody = {
 };
 
 function hookSecretRaw(): string {
-  const raw = Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "";
+  const raw = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "").trim();
+  if (!raw) return "";
+  // Dashboard: "v1,whsec_<base64>" — standardwebhooks ждёт только base64-часть
   return raw.replace(/^v1,whsec_/, "");
+}
+
+function webhookHeaders(req: Request): Record<string, string> {
+  const h = req.headers;
+  return {
+    "webhook-id": h.get("webhook-id") ?? "",
+    "webhook-timestamp": h.get("webhook-timestamp") ?? "",
+    "webhook-signature": h.get("webhook-signature") ?? "",
+  };
 }
 
 function supabaseProjectUrl(): string {
@@ -45,14 +56,19 @@ Deno.serve(async (req) => {
   }
 
   const payload = await req.text();
-  const headers = Object.fromEntries(req.headers.entries());
+  const headers = webhookHeaders(req);
 
   let body: HookBody;
   try {
     const wh = new Webhook(secret);
     body = wh.verify(payload, headers) as HookBody;
   } catch (err) {
-    console.error("auth-send-email webhook verify failed:", err);
+    console.error(
+      "auth-send-email webhook verify failed:",
+      err,
+      "has-id",
+      Boolean(headers["webhook-id"]),
+    );
     return new Response(JSON.stringify({ error: "Invalid webhook" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
@@ -60,6 +76,16 @@ Deno.serve(async (req) => {
   }
 
   const { user, email_data: ed } = body;
+
+  if (!user?.email) {
+    console.error("auth-send-email: missing user.email");
+    return new Response(
+      JSON.stringify({
+        error: { http_code: 500, message: "Missing recipient email" },
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
   const supabaseUrl = supabaseProjectUrl();
 
   try {
@@ -107,12 +133,13 @@ Deno.serve(async (req) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("auth-send-email send failed:", err);
+    const msg = err instanceof Error ? err.message : "Send failed";
+    console.error("auth-send-email send failed:", msg, err);
     return new Response(
       JSON.stringify({
         error: {
           http_code: 500,
-          message: err instanceof Error ? err.message : "Send failed",
+          message: msg,
         },
       }),
       {

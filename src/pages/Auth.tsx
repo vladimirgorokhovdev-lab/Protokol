@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Scale, Mail, Lock, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { isEmailConfirmed } from "@/lib/authEmail";
-import { useEffect } from "react";
+import { EmailOtpForm } from "@/components/EmailOtpForm";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,8 +13,20 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState<string | null>(
+    null,
+  );
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const confirmEmail = searchParams.get("confirm_email");
+    if (confirmEmail) {
+      setPendingConfirmEmail(confirmEmail);
+      setEmail(confirmEmail);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user && isEmailConfirmed(user)) navigate("/", { replace: true });
@@ -44,10 +56,11 @@ const Auth = () => {
         if (error) {
           const msg = error.message.toLowerCase();
           if (msg.includes("email not confirmed") || msg.includes("not verified")) {
+            setPendingConfirmEmail(email);
             toast({
               title: "Подтвердите email",
               description:
-                "Перейдите по ссылке из письма после регистрации. Можно запросить повторную отправку на главной странице.",
+                "Введите код из письма ниже или перейдите по ссылке в письме.",
               variant: "destructive",
             });
             return;
@@ -56,9 +69,10 @@ const Auth = () => {
         }
         const { data: { user: signedIn } } = await supabase.auth.getUser();
         if (signedIn && !isEmailConfirmed(signedIn)) {
+          setPendingConfirmEmail(email);
           toast({
             title: "Подтвердите email",
-            description: "Проверьте почту и перейдите по ссылке из письма.",
+            description: "Введите код из письма ниже или перейдите по ссылке.",
             variant: "destructive",
           });
           return;
@@ -76,11 +90,11 @@ const Auth = () => {
         if (data.session) {
           navigate("/");
         } else {
+          setPendingConfirmEmail(email);
           toast({
             title: "Проверьте почту",
-            description: `Мы отправили ссылку для подтверждения на ${email}. Без подтверждения расшифровка недоступна.`,
+            description: `Код и ссылка отправлены на ${email}. Введите код ниже или откройте ссылку в письме.`,
           });
-          setIsLogin(true);
         }
       }
     } catch (error: unknown) {
@@ -139,11 +153,41 @@ const Auth = () => {
             ПротоколЪ
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isLogin ? "Войдите в аккаунт" : "Создайте аккаунт"}
+            {pendingConfirmEmail
+              ? "Подтвердите email"
+              : isLogin
+                ? "Войдите в аккаунт"
+                : "Создайте аккаунт"}
           </p>
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
+          {pendingConfirmEmail ? (
+            <div className="space-y-4">
+              <h2 className="text-base font-semibold text-foreground text-center">
+                Код из письма
+              </h2>
+              <EmailOtpForm
+                email={pendingConfirmEmail}
+                onSuccess={() => navigate("/", { replace: true })}
+              />
+              <p className="text-xs text-center text-muted-foreground">
+                Или нажмите «Перейти по ссылке» в письме — вход выполнится
+                автоматически.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingConfirmEmail(null);
+                  setIsLogin(true);
+                }}
+                className="w-full text-sm text-gold-dark hover:underline"
+              >
+                Назад к входу
+              </button>
+            </div>
+          ) : (
+            <>
           {!isLogin && (
             <div className="bg-muted/50 border border-border rounded-xl p-4 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">
@@ -294,6 +338,21 @@ const Auth = () => {
               {isLogin ? "Зарегистрироваться" : "Войти"}
             </button>
           </p>
+
+          {isLogin && email && (
+            <p className="text-center text-sm text-muted-foreground">
+              Уже есть код из письма?{" "}
+              <button
+                type="button"
+                onClick={() => setPendingConfirmEmail(email)}
+                className="text-gold-dark hover:underline font-medium"
+              >
+                Ввести код
+              </button>
+            </p>
+          )}
+            </>
+          )}
         </div>
       </div>
     </div>
