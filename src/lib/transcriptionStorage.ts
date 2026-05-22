@@ -5,7 +5,10 @@ export async function uploadAudioFile(
   file: File,
   userId: string,
   onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<string | null> {
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
   const ext = file.name.split(".").pop() || "webm";
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
 
@@ -13,27 +16,49 @@ export async function uploadAudioFile(
     .from("audio-files")
     .createSignedUploadUrl(path);
 
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
   if (signErr || !signed) {
     console.error("Failed to get upload URL:", signErr);
     return null;
   }
 
-  const ok = await new Promise<boolean>((resolve) => {
+  const ok = await new Promise<boolean>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+
+    const onAbort = () => {
+      xhr.abort();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    const finish = (result: boolean) => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve(result);
+    };
+
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     });
     xhr.addEventListener("load", () =>
-      resolve(xhr.status >= 200 && xhr.status < 300),
+      finish(xhr.status >= 200 && xhr.status < 300),
     );
-    xhr.addEventListener("error", () => resolve(false));
-    xhr.addEventListener("abort", () => resolve(false));
+    xhr.addEventListener("error", () => finish(false));
+    xhr.addEventListener("abort", () => {
+      signal?.removeEventListener("abort", onAbort);
+      reject(new DOMException("Aborted", "AbortError"));
+    });
     xhr.open("PUT", signed.signedUrl);
     if (file.type) xhr.setRequestHeader("Content-Type", file.type);
     xhr.send(file);
+  }).catch((err) => {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    return false;
   });
+
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
   if (!ok) {
     console.error("Failed to upload audio");
@@ -41,6 +66,32 @@ export async function uploadAudioFile(
   }
   onProgress?.(100);
   return path;
+}
+
+/** Removes audio from Storage and clears audio_path (text segments stay). */
+export async function deleteTranscriptionAudio(
+  transcriptionId: string,
+  audioPath: string,
+): Promise<boolean> {
+  const { error: storageErr } = await supabase.storage
+    .from("audio-files")
+    .remove([audioPath]);
+
+  if (storageErr) {
+    console.warn("Failed to delete audio from storage:", storageErr);
+    return false;
+  }
+
+  const { error: dbErr } = await supabase
+    .from("transcriptions")
+    .update({ audio_path: null, audio_size_bytes: null } as never)
+    .eq("id", transcriptionId);
+
+  if (dbErr) {
+    console.error("Failed to clear audio_path:", dbErr);
+    return false;
+  }
+  return true;
 }
 
 export async function getAudioUrl(audioPath: string): Promise<string | null> {
@@ -56,6 +107,7 @@ export async function saveTranscription(
   segments: TranscriptSegment[],
   speakerNames: Record<string, string>,
   audioFileOrPath?: File | string | null,
+  audioSizeBytes?: number | null,
 ) {
   const {
     data: { user },
@@ -63,10 +115,16 @@ export async function saveTranscription(
   if (!user) return null;
 
   let audioPath: string | null = null;
+  let sizeBytes: number | null = null;
   if (typeof audioFileOrPath === "string") {
     audioPath = audioFileOrPath;
+    sizeBytes =
+      typeof audioSizeBytes === "number" && audioSizeBytes > 0
+        ? Math.round(audioSizeBytes)
+        : null;
   } else if (audioFileOrPath instanceof File) {
     audioPath = await uploadAudioFile(audioFileOrPath, user.id);
+    sizeBytes = audioFileOrPath.size;
   }
 
   const duration =
@@ -90,6 +148,7 @@ export async function saveTranscription(
       segment_count: segments.length,
       speaker_names: speakerNames,
       audio_path: audioPath,
+      audio_size_bytes: audioPath ? sizeBytes : null,
       team_id: teamId,
     } as never)
     .select()

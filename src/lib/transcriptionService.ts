@@ -41,10 +41,15 @@ export async function transcribeAudio(
   callbacks?.onStatus?.("Загрузка в хранилище...");
   callbacks?.onUploadProgress?.(0);
 
-  const audioPath = await uploadAudioFile(file, user.id, (pct) => {
-    callbacks?.onUploadProgress?.(pct);
-    if (pct < 100) callbacks?.onStatus?.(`Загрузка: ${pct}%`);
-  });
+  const audioPath = await uploadAudioFile(
+    file,
+    user.id,
+    (pct) => {
+      callbacks?.onUploadProgress?.(pct);
+      if (pct < 100) callbacks?.onStatus?.(`Загрузка: ${pct}%`);
+    },
+    signal,
+  );
 
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
   if (!audioPath) throw new Error("Не удалось загрузить файл в хранилище");

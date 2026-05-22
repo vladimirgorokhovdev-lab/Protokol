@@ -34,11 +34,18 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useSharedTranscriptionQueue } from "@/hooks/useSharedTranscriptionQueue";
+import {
+  applyAudioRetentionPolicy,
+  getAudioStorageStats,
+} from "@/lib/audioRetention";
+import { formatAudioStorageUsage } from "@/lib/tierLimits";
 import {
   loadTranscriptions,
   loadTranscriptionSegments,
   deleteTranscription,
+  deleteTranscriptionAudio,
   getAudioUrl,
   updateSpeakerNames,
   mergeSpeakersInDb,
@@ -134,12 +141,15 @@ const formatDuration = (seconds: number) => {
 
 const History = () => {
   const { user } = useAuth();
+  const subscription = useSubscription();
   const { items: queueItems } = useSharedTranscriptionQueue();
   const activeQueueItems = queueItems.filter(
     (i) => i.status === "pending" || i.status === "processing",
   );
   const navigate = useNavigate();
   const [records, setRecords] = useState<TranscriptionRecord[]>([]);
+  const [audioStorageLabel, setAudioStorageLabel] = useState("");
+  const [audioRetentionDays, setAudioRetentionDays] = useState(7);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -259,11 +269,21 @@ const History = () => {
       loadFolders(),
       loadTags(),
       loadAllTranscriptionTagsMap(),
-    ]).then((results) => {
+    ]).then(async (results) => {
       if (cancelled) return;
-      const [recsR, fldR, tgsR, tMapR] = results;
-      if (recsR.status === "fulfilled")
-        setRecords(recsR.value as TranscriptionRecord[]);
+      await applyAudioRetentionPolicy(user.id).catch(console.error);
+      const recsAfterRetention = await loadTranscriptions();
+      if (cancelled) return;
+      const [fldR, tgsR, tMapR] = results;
+      setRecords(recsAfterRetention as TranscriptionRecord[]);
+      getAudioStorageStats(user.id).then((stats) => {
+        if (!cancelled) {
+          setAudioStorageLabel(
+            formatAudioStorageUsage(stats.usedBytes, stats.limitBytes),
+          );
+          setAudioRetentionDays(stats.retentionDays);
+        }
+      });
       if (fldR.status === "fulfilled") setFolders(fldR.value);
       if (tgsR.status === "fulfilled") setAllTags(tgsR.value);
       if (tMapR.status === "fulfilled") setTagsByTranscription(tMapR.value);
@@ -644,8 +664,58 @@ const History = () => {
         setRedoStack([]);
         setSelectedRecord(null);
       }
+      if (user) {
+        getAudioStorageStats(user.id).then((s) =>
+          setAudioStorageLabel(
+            formatAudioStorageUsage(s.usedBytes, s.limitBytes),
+          ),
+        );
+      }
       toast({ title: "Удалено", description: "Расшифровка удалена" });
     }
+  };
+
+  const handleDeleteAudio = async () => {
+    if (!selectedRecord?.audio_path || !selectedId) return;
+    if (
+      !confirm(
+        "Удалить аудиофайл? Текст расшифровки и правки останутся, но прослушивание будет недоступно.",
+      )
+    ) {
+      return;
+    }
+    const ok = await deleteTranscriptionAudio(
+      selectedId,
+      selectedRecord.audio_path,
+    );
+    if (!ok) {
+      toast({
+        title: "Не удалось удалить аудио",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSelectedRecord({ ...selectedRecord, audio_path: null });
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === selectedId ? { ...r, audio_path: null } : r,
+      ),
+    );
+    setAudioUrl(null);
+    setAudioMissing(true);
+    setIsPlaying(false);
+    if (audioRef.current) audioRef.current.pause();
+    if (user) {
+      getAudioStorageStats(user.id).then((s) =>
+        setAudioStorageLabel(
+          formatAudioStorageUsage(s.usedBytes, s.limitBytes),
+        ),
+      );
+    }
+    toast({
+      title: "Аудио удалено",
+      description: "Расшифровка сохранена — можно редактировать и экспортировать.",
+    });
   };
 
   const handleBack = () => {
@@ -1421,11 +1491,28 @@ const History = () => {
                   )}
                 </div>
               )}
+            {selectedRecord && audioStorageLabel && (
+              <div className="mb-4 p-3 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground">
+                Хранилище аудио:{" "}
+                <span className="font-medium text-foreground">
+                  {audioStorageLabel}
+                </span>
+                {subscription.tier === "team"
+                  ? " (общий пул команды)"
+                  : null}{" "}
+                · срок хранения до{" "}
+                <span className="font-medium text-foreground">
+                  {audioRetentionDays} дн.
+                </span>
+                . Текст расшифровки без лимита — редактирование и экспорт
+                всегда доступны. Освободить место: кнопка корзины у плеера.
+              </div>
+            )}
             {audioMissing && !audioUrl && (
               <div className="mb-4 p-3 rounded-xl border border-destructive/30 bg-destructive/10 text-sm text-destructive">
                 Аудиофайл этой расшифровки недоступен в хранилище (возможно, был
-                удалён). Текст расшифровки сохранён, но воспроизведение
-                невозможно.
+                удалён). Текст расшифровки сохранён — редактирование и экспорт
+                доступны, воспроизведение невозможно.
               </div>
             )}
             {audioUrl && (
@@ -1539,14 +1626,24 @@ const History = () => {
                     )}
                   </div>
                   {audioUrl && (
-                    <a
-                      href={audioUrl}
-                      download={selectedRecord?.file_name || "audio"}
-                      className="p-1.5 rounded hover:bg-muted transition-colors hidden sm:flex"
-                      title="Скачать аудио"
-                    >
-                      <Download className="w-4 h-4 text-muted-foreground" />
-                    </a>
+                    <>
+                      <a
+                        href={audioUrl}
+                        download={selectedRecord?.file_name || "audio"}
+                        className="p-1.5 rounded hover:bg-muted transition-colors hidden sm:flex"
+                        title="Скачать аудио"
+                      >
+                        <Download className="w-4 h-4 text-muted-foreground" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleDeleteAudio}
+                        className="p-1.5 rounded hover:bg-destructive/10 transition-colors hidden sm:flex"
+                        title="Удалить аудио (текст останется)"
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </button>
+                    </>
                   )}
                 </div>
                 <audio ref={audioRef} key={audioUrl} className="hidden">

@@ -6,10 +6,8 @@ import {
 } from "@/lib/transcriptionService";
 import { supabase } from "@/integrations/supabase/client";
 import { probeMediaDuration } from "@/lib/probeMediaDuration";
-import {
-  saveTranscription,
-  updateSpeakerNames,
-} from "@/lib/transcriptionStorage";
+import { applyAudioRetentionPolicy } from "@/lib/audioRetention";
+import { saveTranscription, updateSpeakerNames } from "@/lib/transcriptionStorage";
 import { billMyTranscriptionJob } from "@/lib/billTranscriptionJob";
 import { showTranscriptionDoneNotification } from "@/lib/notifications";
 import { toast } from "sonner";
@@ -117,6 +115,7 @@ export function useTranscriptionQueue() {
           segments,
           {},
           audioPath,
+          file.size,
         );
 
         const jobId = jobIdsRef.current.get(id);
@@ -128,6 +127,11 @@ export function useTranscriptionQueue() {
         }
         if (jobId) await billMyTranscriptionJob(jobId);
 
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) await applyAudioRetentionPolicy(user.id);
+
         updateItem(id, {
           status: "done",
           segments,
@@ -137,9 +141,6 @@ export function useTranscriptionQueue() {
 
         showTranscriptionDoneNotification(file.name, segments.length);
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
         if (user) {
           const lastEnd =
             segments.length > 0 ? segments[segments.length - 1].endTime : 0;
@@ -280,6 +281,10 @@ export function useTranscriptionQueue() {
                 .update({ transcription_id: dbId })
                 .eq("id", job.id);
               await billMyTranscriptionJob(job.id);
+              const {
+                data: { user: u },
+              } = await supabase.auth.getUser();
+              if (u) await applyAudioRetentionPolicy(u.id);
               updateItem(localId, {
                 status: "done",
                 segments: segs,
@@ -322,6 +327,10 @@ export function useTranscriptionQueue() {
                   .eq("id", job.id);
               }
               await billMyTranscriptionJob(job.id);
+              const {
+                data: { user: u },
+              } = await supabase.auth.getUser();
+              if (u) await applyAudioRetentionPolicy(u.id);
               updateItem(localId, {
                 status: "done",
                 segments: segs,
@@ -351,24 +360,29 @@ export function useTranscriptionQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const cancelItem = useCallback((id: string) => {
-    const controller = abortControllers.current.get(id);
-    if (controller) controller.abort();
+  const cancelItem = useCallback(
+    (id: string) => {
+      const controller = abortControllers.current.get(id);
+      if (controller) controller.abort();
 
-    const jobId = jobIdsRef.current.get(id);
-    if (jobId) {
-      supabase
-        .from("transcription_jobs")
-        .update({
-          status: "cancelled",
-          status_message: "Отменено пользователем",
-        })
-        .eq("id", jobId)
-        .then(({ error }) => {
-          if (error) console.error("Failed to mark job cancelled:", error);
-        });
-    }
-  }, []);
+      updateItem(id, { status: "cancelled", statusMessage: "Отменено" });
+
+      const jobId = jobIdsRef.current.get(id);
+      if (jobId) {
+        supabase
+          .from("transcription_jobs")
+          .update({
+            status: "cancelled",
+            status_message: "Отменено пользователем",
+          })
+          .eq("id", jobId)
+          .then(({ error }) => {
+            if (error) console.error("Failed to mark job cancelled:", error);
+          });
+      }
+    },
+    [updateItem],
+  );
 
   const removeItem = useCallback((id: string) => {
     const controller = abortControllers.current.get(id);

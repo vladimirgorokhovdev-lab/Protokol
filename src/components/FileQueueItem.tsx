@@ -657,11 +657,12 @@ const FileQueueItem = ({
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {item.status === "processing" && (
+          {(item.status === "processing" || item.status === "pending") && (
             <button
-              onClick={onCancel}
+              type="button"
+              onClick={item.status === "pending" ? onRemove : onCancel}
               className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
-              title="Остановить"
+              title={item.status === "pending" ? "Убрать из очереди" : "Остановить"}
             >
               <X className="w-4 h-4 text-destructive" />
             </button>

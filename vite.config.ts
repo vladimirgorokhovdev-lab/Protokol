@@ -18,13 +18,7 @@ export default defineConfig({
   plugins: [
     react(),
     legacy({
-      targets: [
-        "defaults",
-        "Chrome >= 49",
-        "Safari >= 12",
-        "iOS >= 12",
-        "Android >= 5",
-      ],
+      targets: ["defaults", "Chrome >= 49", "Safari >= 12", "iOS >= 12", "Android >= 5"],
       modernPolyfills: true,
       renderLegacyChunks: true,
     }),

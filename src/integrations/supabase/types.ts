@@ -713,6 +713,7 @@ export type Database = {
         Row: {
           ai_summary: Json | null;
           audio_path: string | null;
+          audio_size_bytes: number | null;
           created_at: string;
           duration: number;
           file_name: string;
@@ -729,6 +730,7 @@ export type Database = {
         Insert: {
           ai_summary?: Json | null;
           audio_path?: string | null;
+          audio_size_bytes?: number | null;
           created_at?: string;
           duration?: number;
           file_name: string;
@@ -745,6 +747,7 @@ export type Database = {
         Update: {
           ai_summary?: Json | null;
           audio_path?: string | null;
+          audio_size_bytes?: number | null;
           created_at?: string;
           duration?: number;
           file_name?: string;
