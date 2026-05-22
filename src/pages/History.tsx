@@ -80,7 +80,6 @@ import TranscriptionView from "@/components/TranscriptionView";
 import { toast } from "@/hooks/use-toast";
 import type { TranscriptSegment } from "@/lib/transcript";
 import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FolderSidebar } from "@/components/FolderSidebar";
 import { TagManager } from "@/components/TagManager";
@@ -216,15 +215,15 @@ const History = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagsByTranscription, setTagsByTranscription] = useState<
-    Map<string, Tag[]>
-  >(new Map());
+    Record<string, Tag[]>
+  >({});
   const [selectedFolderId, setSelectedFolderId] = useState<
     string | null | "all"
   >("all");
   const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
   const [filterSpeaker, setFilterSpeaker] = useState("");
   const [filterCaseNumber, setFilterCaseNumber] = useState("");
-  const [searchResults, setSearchResults] = useState<Map<
+  const [searchResults, setSearchResults] = useState<Record<
     string,
     SearchResult
   > | null>(null);
@@ -271,22 +270,15 @@ const History = () => {
       loadAllTranscriptionTagsMap(),
     ]).then(async (results) => {
       if (cancelled) return;
-      await applyAudioRetentionPolicy(user.id).catch(console.error);
-      const recsAfterRetention = await loadTranscriptions();
-      if (cancelled) return;
-      const [fldR, tgsR, tMapR] = results;
-      setRecords(recsAfterRetention as TranscriptionRecord[]);
-      getAudioStorageStats(user.id).then((stats) => {
-        if (!cancelled) {
-          setAudioStorageLabel(
-            formatAudioStorageUsage(stats.usedBytes, stats.limitBytes),
-          );
-          setAudioRetentionDays(stats.retentionDays);
-        }
-      });
+      const [recsR, fldR, tgsR, tMapR] = results;
+      if (recsR.status === "fulfilled") {
+        setRecords(recsR.value as TranscriptionRecord[]);
+      }
       if (fldR.status === "fulfilled") setFolders(fldR.value);
       if (tgsR.status === "fulfilled") setAllTags(tgsR.value);
-      if (tMapR.status === "fulfilled") setTagsByTranscription(tMapR.value);
+      if (tMapR.status === "fulfilled") {
+        setTagsByTranscription(Object.fromEntries(tMapR.value));
+      }
       const failed = results.filter((r) => r.status === "rejected");
       if (failed.length > 0) {
         console.warn("History: некоторые данные не загрузились", failed);
@@ -297,6 +289,24 @@ const History = () => {
         });
       }
       setLoading(false);
+
+      void applyAudioRetentionPolicy(user.id)
+        .then(() => loadTranscriptions())
+        .then((recsAfterRetention) => {
+          if (!cancelled) {
+            setRecords(recsAfterRetention as TranscriptionRecord[]);
+          }
+        })
+        .catch(console.error);
+
+      getAudioStorageStats(user.id).then((stats) => {
+        if (!cancelled) {
+          setAudioStorageLabel(
+            formatAudioStorageUsage(stats.usedBytes, stats.limitBytes),
+          );
+          setAudioRetentionDays(stats.retentionDays);
+        }
+      });
     });
     return () => {
       cancelled = true;
@@ -333,8 +343,11 @@ const History = () => {
         speaker: filterSpeaker,
         caseNumber: filterCaseNumber,
       });
-      const map = new Map(results.map((r) => [r.transcription_id, r]));
-      setSearchResults(map);
+      const byId: Record<string, SearchResult> = {};
+      results.forEach((r) => {
+        byId[r.transcription_id] = r;
+      });
+      setSearchResults(byId);
       setSearchLoading(false);
     }, 400);
     return () => clearTimeout(timeout);
@@ -372,7 +385,7 @@ const History = () => {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
         (r) =>
-          searchResults.has(r.id) ||
+          r.id in searchResults ||
           (q && r.file_name.toLowerCase().includes(q)),
       );
     }
@@ -516,7 +529,7 @@ const History = () => {
       const recs = await loadTranscriptions();
       setRecords(recs as TranscriptionRecord[]);
       const tMap = await loadAllTranscriptionTagsMap();
-      setTagsByTranscription(tMap);
+      setTagsByTranscription(Object.fromEntries(tMap));
       exitSelectionMode();
       toast({
         title: "Расшифровки объединены",
@@ -578,11 +591,10 @@ const History = () => {
   const handleAddTag = async (transcriptionId: string, tag: Tag) => {
     const ok = await addTranscriptionTag(transcriptionId, tag.id);
     if (ok) {
-      setTagsByTranscription((prev) => {
-        const next = new Map(prev);
-        next.set(transcriptionId, [...(next.get(transcriptionId) || []), tag]);
-        return next;
-      });
+      setTagsByTranscription((prev) => ({
+        ...prev,
+        [transcriptionId]: [...(prev[transcriptionId] || []), tag],
+      }));
       if (transcriptionId === selectedId) {
         setSelectedTranscriptionTags((prev) => [...prev, tag]);
       }
@@ -592,14 +604,12 @@ const History = () => {
   const handleRemoveTag = async (transcriptionId: string, tagId: string) => {
     const ok = await removeTranscriptionTag(transcriptionId, tagId);
     if (ok) {
-      setTagsByTranscription((prev) => {
-        const next = new Map(prev);
-        next.set(
-          transcriptionId,
-          (next.get(transcriptionId) || []).filter((t) => t.id !== tagId),
-        );
-        return next;
-      });
+      setTagsByTranscription((prev) => ({
+        ...prev,
+        [transcriptionId]: (prev[transcriptionId] || []).filter(
+          (t) => t.id !== tagId,
+        ),
+      }));
       if (transcriptionId === selectedId) {
         setSelectedTranscriptionTags((prev) =>
           prev.filter((t) => t.id !== tagId),
@@ -2100,8 +2110,8 @@ const History = () => {
                         <AnimatePresence>
                           {filteredRecords.map((record, i) => {
                             const recordTags =
-                              tagsByTranscription.get(record.id) || [];
-                            const searchHit = searchResults?.get(record.id);
+                              tagsByTranscription[record.id] || [];
+                            const searchHit = searchResults?.[record.id];
                             const recordFolder = folders.find(
                               (f) => f.id === record.folder_id,
                             );

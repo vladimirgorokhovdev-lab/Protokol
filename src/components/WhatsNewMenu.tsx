@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { WHATS_NEW, WHATS_NEW_VERSION } from "@/lib/whatsNew";
 import { format, parseISO } from "date-fns";
-import { ru } from "date-fns/locale";
+import { ru } from "date-fns/locale/ru";
 
 const STORAGE_KEY = "protokolъ:whatsNewSeen";
 

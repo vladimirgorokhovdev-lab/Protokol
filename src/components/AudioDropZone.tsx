@@ -1,6 +1,6 @@
 import { useCallback, useState, forwardRef } from "react";
 import { Upload, Mic, FolderOpen, Users } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface AudioDropZoneProps {
   onFilesSelect: (files: File[], numSpeakers?: number) => void;
@@ -71,15 +71,13 @@ const warnAboutLargeFiles = (files: File[]) => {
     const ext = f.name.toLowerCase().slice(f.name.lastIndexOf("."));
     const isUncompressed = UNCOMPRESSED_EXTS.includes(ext);
     if (isUncompressed && f.size > LARGE_FILE_BYTES) {
-      toast({
-        title: `Несжатый файл: ${f.name} (${formatMb(f.size)})`,
+      toast.warning(`Несжатый файл: ${f.name} (${formatMb(f.size)})`, {
         description:
           "Рекомендуем сконвертировать в MP3 или M4A — размер уменьшится в 8–10 раз без потери точности расшифровки.",
         duration: 8000,
       });
     } else if (f.size > VERY_LARGE_FILE_BYTES) {
-      toast({
-        title: `Очень крупный файл: ${f.name} (${formatMb(f.size)})`,
+      toast.warning(`Очень крупный файл: ${f.name} (${formatMb(f.size)})`, {
         description: "Расшифровка может занять 10–20 минут.",
         duration: 8000,
       });
@@ -99,44 +97,68 @@ const AudioDropZone = forwardRef<HTMLInputElement, AudioDropZoneProps>(
     const handleDrop = useCallback(
       async (e: React.DragEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         setDragOver(false);
 
-        const items = e.dataTransfer.items;
-        const allFiles: File[] = [];
+        try {
+          const items = e.dataTransfer.items;
+          const allFiles: File[] = [];
 
-        if (items && items.length > 0) {
-          const entries: FileSystemEntry[] = [];
-          for (let i = 0; i < items.length; i++) {
-            const entry = items[i].webkitGetAsEntry?.();
-            if (entry) entries.push(entry);
-          }
+          if (items && items.length > 0) {
+            const entries: FileSystemEntry[] = [];
+            for (let i = 0; i < items.length; i++) {
+              const entry = items[i].webkitGetAsEntry?.();
+              if (entry) entries.push(entry);
+            }
 
-          if (entries.length > 0) {
-            for (const entry of entries) {
-              allFiles.push(...(await collectMediaFiles(entry)));
+            if (entries.length > 0) {
+              for (const entry of entries) {
+                allFiles.push(...(await collectMediaFiles(entry)));
+              }
+            } else {
+              const files = Array.from(e.dataTransfer.files).filter(isMediaFile);
+              allFiles.push(...files);
             }
           } else {
             const files = Array.from(e.dataTransfer.files).filter(isMediaFile);
             allFiles.push(...files);
           }
-        } else {
-          const files = Array.from(e.dataTransfer.files).filter(isMediaFile);
-          allFiles.push(...files);
-        }
 
-        if (allFiles.length > 0) {
-          warnAboutLargeFiles(allFiles);
-          onFilesSelect(allFiles, selectedSpeakers);
+          if (allFiles.length > 0) {
+            warnAboutLargeFiles(allFiles);
+            onFilesSelect(allFiles, selectedSpeakers);
+          } else {
+            const dropped = Array.from(e.dataTransfer.files);
+            toast.error(
+              dropped.length > 0
+                ? "Формат файла не поддерживается"
+                : "Не удалось прочитать файл",
+              {
+                description:
+                  "Поддерживаются MP3, WAV, M4A, MP4, MOV, MKV и другие аудио/видео.",
+              },
+            );
+          }
+        } catch (err) {
+          console.error("Drop failed:", err);
+          toast.error("Не удалось принять файл", {
+            description: "Попробуйте выбрать файл кнопкой «Обзор» или обновите страницу.",
+          });
         }
       },
       [onFilesSelect, selectedSpeakers],
     );
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []).filter(isMediaFile);
+      const raw = Array.from(e.target.files || []);
+      const files = raw.filter(isMediaFile);
       if (files.length > 0) {
         warnAboutLargeFiles(files);
         onFilesSelect(files, selectedSpeakers);
+      } else if (raw.length > 0) {
+        toast.error("Формат файла не поддерживается", {
+          description: "Выберите аудио или видео (MP3, M4A, MP4, WAV и т.д.).",
+        });
       }
       e.target.value = "";
     };
@@ -163,14 +185,29 @@ const AudioDropZone = forwardRef<HTMLInputElement, AudioDropZoneProps>(
         </div>
 
         <div className="flex gap-3">
-          <label
-            htmlFor="audio-upload-multi"
-            onDragOver={(e) => {
+          <div
+            className="flex-1"
+            onDragEnter={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               setDragOver(true);
             }}
-            onDragLeave={() => setDragOver(false)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = "copy";
+              setDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOver(false);
+              }
+            }}
             onDrop={handleDrop}
+          >
+          <label
+            htmlFor="audio-upload-multi"
             className={`
             flex-1 flex flex-col items-center justify-center gap-3 p-8 rounded-xl
             border-2 border-dashed cursor-pointer transition-all duration-300
@@ -203,6 +240,7 @@ const AudioDropZone = forwardRef<HTMLInputElement, AudioDropZoneProps>(
               onChange={handleInputChange}
             />
           </label>
+          </div>
 
           <button
             onClick={onRecordClick}

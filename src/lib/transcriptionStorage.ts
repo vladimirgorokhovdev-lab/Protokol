@@ -138,21 +138,48 @@ export async function saveTranscription(
     .maybeSingle();
   const teamId = membership?.team_id ?? null;
 
-  const { data: transcription, error } = await supabase
+  const baseRow = {
+    user_id: user.id,
+    file_name: fileName,
+    duration,
+    speaker_count: uniqueSpeakers.size,
+    segment_count: segments.length,
+    speaker_names: speakerNames,
+    audio_path: audioPath,
+    team_id: teamId,
+  };
+
+  let transcription: { id: string } | null = null;
+  let error: { message?: string } | null = null;
+
+  const withSize = {
+    ...baseRow,
+    ...(audioPath && sizeBytes != null
+      ? { audio_size_bytes: sizeBytes }
+      : {}),
+  };
+
+  const first = await supabase
     .from("transcriptions")
-    .insert({
-      user_id: user.id,
-      file_name: fileName,
-      duration,
-      speaker_count: uniqueSpeakers.size,
-      segment_count: segments.length,
-      speaker_names: speakerNames,
-      audio_path: audioPath,
-      audio_size_bytes: audioPath ? sizeBytes : null,
-      team_id: teamId,
-    } as never)
+    .insert(withSize as never)
     .select()
     .single();
+  transcription = first.data;
+  error = first.error;
+
+  if (
+    error?.message?.includes("audio_size_bytes") &&
+    audioPath &&
+    sizeBytes != null
+  ) {
+    const retry = await supabase
+      .from("transcriptions")
+      .insert(baseRow as never)
+      .select()
+      .single();
+    transcription = retry.data;
+    error = retry.error;
+  }
 
   if (error || !transcription) {
     console.error("Failed to save transcription:", error);

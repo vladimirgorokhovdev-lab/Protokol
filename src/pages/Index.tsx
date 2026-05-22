@@ -163,11 +163,27 @@ const Index = () => {
 
   const handleAddFiles = useCallback(
     async (files: File[], numSpeakers?: number) => {
+      if (!user) {
+        toast.error("Сначала войдите в аккаунт", {
+          action: { label: "Войти", onClick: () => navigate("/auth") },
+        });
+        return;
+      }
       if (!guardQuota()) return;
-      if (!(await checkFilesAgainstQuota(files))) return;
-      addFiles(files, numSpeakers);
+
+      const checkToast = toast.loading(
+        files.length === 1
+          ? "Проверка файла..."
+          : `Проверка файлов (${files.length})...`,
+      );
+      try {
+        if (!(await checkFilesAgainstQuota(files))) return;
+        addFiles(files, numSpeakers);
+      } finally {
+        toast.dismiss(checkToast);
+      }
     },
-    [addFiles, guardQuota, checkFilesAgainstQuota],
+    [addFiles, guardQuota, checkFilesAgainstQuota, user, navigate],
   );
 
   const handleOpenRecorder = useCallback(() => {

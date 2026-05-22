@@ -4,7 +4,7 @@ import { loadStalledJobs, retryJob, deleteJob, type StalledJob } from "@/lib/job
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { ru } from "date-fns/locale/ru";
 
 export function StalledJobsPanel() {
   const [jobs, setJobs] = useState<StalledJob[]>([]);
@@ -104,7 +104,15 @@ export function StalledJobsPanel() {
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
                     {reason} ·{" "}
-                    {format(new Date(job.created_at), "d MMM HH:mm", { locale: ru })}
+                    {(() => {
+                      try {
+                        return format(new Date(job.created_at), "d MMM HH:mm", {
+                          locale: ru,
+                        });
+                      } catch {
+                        return new Date(job.created_at).toLocaleString("ru-RU");
+                      }
+                    })()}
                   </div>
                 </div>
                 <button

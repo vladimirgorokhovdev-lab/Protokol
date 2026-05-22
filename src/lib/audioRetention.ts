@@ -59,10 +59,13 @@ async function resolveAudioScope(userId: string): Promise<{
   return { scope: { kind: "user", userId }, tier };
 }
 
-function scopeQuery(scope: AudioScope) {
+function scopeQuery(scope: AudioScope, withSize = true) {
+  const cols = withSize
+    ? "id, audio_path, audio_size_bytes, created_at"
+    : "id, audio_path, created_at";
   let q = supabase
     .from("transcriptions")
-    .select("id, audio_path, audio_size_bytes, created_at")
+    .select(cols)
     .not("audio_path", "is", null);
 
   if (scope.kind === "team") {
@@ -73,6 +76,16 @@ function scopeQuery(scope: AudioScope) {
   return q;
 }
 
+async function listAudioRows(scope: AudioScope) {
+  let { data, error } = await scopeQuery(scope, true);
+  if (error?.message?.includes("audio_size_bytes")) {
+    const fallback = await scopeQuery(scope, false);
+    data = fallback.data as typeof data;
+    error = fallback.error;
+  }
+  return { data: data ?? [], error };
+}
+
 export async function getAudioStorageStats(userId: string): Promise<{
   usedBytes: number;
   limitBytes: number;
@@ -80,7 +93,7 @@ export async function getAudioStorageStats(userId: string): Promise<{
   retentionDays: number;
 }> {
   const { scope, tier } = await resolveAudioScope(userId);
-  const { data, error } = await scopeQuery(scope);
+  const { data, error } = await listAudioRows(scope);
 
   if (error) {
     console.error("getAudioStorageStats:", error);
@@ -92,8 +105,9 @@ export async function getAudioStorageStats(userId: string): Promise<{
     };
   }
 
-  const usedBytes = (data ?? []).reduce(
-    (sum, row) => sum + Number(row.audio_size_bytes || 0),
+  const usedBytes = data.reduce(
+    (sum, row) =>
+      sum + Number((row as { audio_size_bytes?: number | null }).audio_size_bytes || 0),
     0,
   );
 
@@ -115,11 +129,15 @@ export async function purgeExpiredAudioForScope(
     Date.now() - days * 24 * 60 * 60 * 1000,
   ).toISOString();
 
-  const { data, error } = await scopeQuery(scope).lt("created_at", cutoff);
+  const { data, error } = await listAudioRows(scope);
+  if (error) return;
+  const expired = data.filter(
+    (row) => (row as { created_at?: string }).created_at && (row as { created_at: string }).created_at < cutoff,
+  );
 
-  if (error || !data?.length) return;
+  if (!expired.length) return;
 
-  for (const row of data) {
+  for (const row of expired) {
     if (row.audio_path) {
       await deleteTranscriptionAudio(row.id, row.audio_path);
     }
@@ -132,21 +150,27 @@ export async function enforceAudioStorageQuota(
   tier: SubscriptionTier,
 ): Promise<void> {
   const limitBytes = audioStorageLimitBytes(tier);
-  const { data, error } = await scopeQuery(scope).order("created_at", {
-    ascending: true,
-  });
+  const { data, error } = await listAudioRows(scope);
+  if (error || !data.length) return;
 
-  if (error || !data?.length) return;
+  const sorted = [...data].sort(
+    (a, b) =>
+      new Date((a as { created_at: string }).created_at).getTime() -
+      new Date((b as { created_at: string }).created_at).getTime(),
+  );
 
-  let usedBytes = data.reduce(
-    (sum, row) => sum + Number(row.audio_size_bytes || 0),
+  let usedBytes = sorted.reduce(
+    (sum, row) =>
+      sum + Number((row as { audio_size_bytes?: number | null }).audio_size_bytes || 0),
     0,
   );
 
-  for (const row of data) {
+  for (const row of sorted) {
     if (usedBytes <= limitBytes) break;
     if (!row.audio_path) continue;
-    const size = Number(row.audio_size_bytes || 0);
+    const size = Number(
+      (row as { audio_size_bytes?: number | null }).audio_size_bytes || 0,
+    );
     const ok = await deleteTranscriptionAudio(row.id, row.audio_path);
     if (ok) usedBytes = Math.max(0, usedBytes - size);
   }
@@ -155,8 +179,12 @@ export async function enforceAudioStorageQuota(
 export async function applyAudioRetentionPolicy(
   userId: string,
 ): Promise<void> {
-  const { scope, tier } = await resolveAudioScope(userId);
-  await purgeExpiredAudioForScope(scope, tier);
-  await enforceAudioStorageQuota(scope, tier);
+  try {
+    const { scope, tier } = await resolveAudioScope(userId);
+    await purgeExpiredAudioForScope(scope, tier);
+    await enforceAudioStorageQuota(scope, tier);
+  } catch (e) {
+    console.warn("applyAudioRetentionPolicy:", e);
+  }
 }
 
