@@ -1742,6 +1742,17 @@ const History = () => {
             />
 
             <div className="flex-1 min-w-0 space-y-4">
+              {audioStorageLabel && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    Хранилище аудио:
+                  </span>{" "}
+                  {audioStorageLabel}
+                  {subscription.tier === "team" ? " · общий пул команды" : null}
+                  {" · "}
+                  срок до {audioRetentionDays} дн. Текст расшифровок без лимита.
+                </div>
+              )}
               <ActiveJobsPanel />
               <StalledJobsPanel />
               {records.length === 0 && activeQueueItems.length === 0 ? (
