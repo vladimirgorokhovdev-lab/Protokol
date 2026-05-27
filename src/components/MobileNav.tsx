@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Star, CreditCard, HelpCircle, History, MessageSquare, LogIn, LogOut, Home, PlayCircle, ShieldCheck, User as UserIcon, RotateCcw } from "lucide-react";
+import { Menu, X, Star, CreditCard, HelpCircle, MessageSquare, LogIn, LogOut, Home, PlayCircle, ShieldCheck, User as UserIcon, RotateCcw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadFeedback } from "@/hooks/useUnreadFeedback";
+import { useHistoryBadge } from "@/hooks/useHistoryBadge";
+import { HistoryNavButton } from "@/components/HistoryNavButton";
 import { useApprovalStatus } from "@/hooks/useApprovalStatus";
 import { WhatsNewMenu } from "@/components/WhatsNewMenu";
 import { resetCacheAndReload } from "@/lib/cacheReset";
@@ -18,6 +20,7 @@ export function MobileNav({ showHome = true }: MobileNavProps) {
   const { user, signOut } = useAuth();
   const { isAdmin } = useApprovalStatus();
   const { unreadCount: unreadFeedback, markRead: markFeedbackRead } = useUnreadFeedback();
+  const { totalCount: historyCount, newCount: historyNewCount } = useHistoryBadge();
 
   const go = (path: string) => {
     navigate(path);
@@ -66,9 +69,12 @@ export function MobileNav({ showHome = true }: MobileNavProps) {
                   <button onClick={() => go("/account")} className="flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-sm text-foreground text-left">
                     <UserIcon className="w-4 h-4 text-muted-foreground" /> Личный кабинет
                   </button>
-                  <button onClick={() => go("/history")} className="flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-sm text-foreground text-left">
-                    <History className="w-4 h-4 text-muted-foreground" /> История
-                  </button>
+                  <HistoryNavButton
+                    variant="mobile"
+                    totalCount={historyCount}
+                    newCount={historyNewCount}
+                    onClick={() => go("/history")}
+                  />
                   <button onClick={() => { markFeedbackRead(); go("/feedback"); }} className="relative flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-sm text-foreground text-left">
                     <MessageSquare className="w-4 h-4 text-muted-foreground" /> Отзывы
                     {unreadFeedback > 0 && (

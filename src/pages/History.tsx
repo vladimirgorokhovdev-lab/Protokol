@@ -85,6 +85,7 @@ import { FolderSidebar } from "@/components/FolderSidebar";
 import { TagManager } from "@/components/TagManager";
 import { StalledJobsPanel } from "@/components/StalledJobsPanel";
 import { ActiveJobsPanel } from "@/components/ActiveJobsPanel";
+import { markHistorySeen } from "@/lib/historyBadge";
 
 function getMimeType(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase();
@@ -255,6 +256,10 @@ const History = () => {
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    markHistorySeen();
   }, []);
 
   useEffect(() => {

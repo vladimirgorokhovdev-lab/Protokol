@@ -7,6 +7,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { probeMediaDuration } from "@/lib/probeMediaDuration";
 import { applyAudioRetentionPolicy } from "@/lib/audioRetention";
+import { notifyHistoryUpdated } from "@/lib/historyBadge";
 import { saveTranscription, updateSpeakerNames } from "@/lib/transcriptionStorage";
 import { billMyTranscriptionJob } from "@/lib/billTranscriptionJob";
 import { showTranscriptionDoneNotification } from "@/lib/notifications";
@@ -138,6 +139,7 @@ export function useTranscriptionQueue() {
           dbId,
           statusMessage: `Готово: ${segments.length} фрагментов`,
         });
+        notifyHistoryUpdated();
 
         showTranscriptionDoneNotification(file.name, segments.length);
 
@@ -337,6 +339,7 @@ export function useTranscriptionQueue() {
                 dbId,
                 statusMessage: `Готово: ${segs.length} фрагментов`,
               });
+              notifyHistoryUpdated();
               showTranscriptionDoneNotification(job.file_name, segs.length);
             })
             .catch((err) => {

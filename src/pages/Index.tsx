@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Scale,
   Shield,
-  History,
   LogIn,
   LogOut,
   MessageSquare,
@@ -45,6 +44,9 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
 import { isEmailConfirmed } from "@/lib/authEmail";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
+import { HistoryNavButton } from "@/components/HistoryNavButton";
+import { SavedToHistoryCard } from "@/components/SavedToHistoryCard";
+import { useHistoryBadge } from "@/hooks/useHistoryBadge";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -60,44 +62,34 @@ const Index = () => {
     useUnreadFeedback();
   const { unreadCount: unreadContact } = useUnreadContact();
 
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
-  const notifiedIdsRef = useRef<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const { totalCount: historyCount, newCount: historyNewCount } =
+    useHistoryBadge();
 
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    items.forEach((item) => {
-      if (
-        item.status === "done" &&
-        !hiddenIds.has(item.id) &&
-        !notifiedIdsRef.current.has(item.id)
-      ) {
-        notifiedIdsRef.current.add(item.id);
-        const timer = setTimeout(() => {
-          setHiddenIds((prev) => {
-            const next = new Set(prev);
-            next.add(item.id);
-            return next;
-          });
-          removeItem(item.id);
-          toast.success("Расшифровка сохранена в истории", {
-            action: {
-              label: "Открыть",
-              onClick: () => navigate("/history"),
-            },
-          });
-        }, 4000);
-        timers.push(timer);
-      }
-    });
-    return () => {
-      timers.forEach(clearTimeout);
-    };
-  }, [items, hiddenIds, removeItem, navigate]);
-
-  const visibleItems = useMemo(
-    () => items.filter((i) => !hiddenIds.has(i.id)),
-    [items, hiddenIds],
+  const activeItems = useMemo(
+    () =>
+      items.filter((i) => i.status !== "done" && !dismissedIds.has(i.id)),
+    [items, dismissedIds],
   );
+
+  const savedToHistoryItems = useMemo(
+    () => items.filter((i) => i.status === "done" && !dismissedIds.has(i.id)),
+    [items, dismissedIds],
+  );
+
+  const hasQueueVisible = activeItems.length > 0 || savedToHistoryItems.length > 0;
+
+  const dismissQueueItem = useCallback(
+    (id: string) => {
+      setDismissedIds((prev) => new Set(prev).add(id));
+      removeItem(id);
+    },
+    [removeItem],
+  );
+
+  const openHistory = useCallback(() => {
+    navigate("/history");
+  }, [navigate]);
 
   const subscription = useSubscription();
   const emailBlocked = Boolean(user) && !isEmailConfirmed(user);
@@ -200,10 +192,10 @@ const Index = () => {
   );
 
   useEffect(() => {
-    if (visibleItems.length > 0) {
+    if (hasQueueVisible) {
       requestNotificationPermission();
     }
-  }, [visibleItems.length > 0]);
+  }, [hasQueueVisible]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -285,13 +277,11 @@ const Index = () => {
                   <UserIcon className="w-4 h-4" />
                   Кабинет
                 </button>
-                <button
-                  onClick={() => navigate("/history")}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors text-[13px] text-muted-foreground hover:text-foreground"
-                >
-                  <History className="w-4 h-4" />
-                  История
-                </button>
+                <HistoryNavButton
+                  totalCount={historyCount}
+                  newCount={historyNewCount}
+                  onClick={openHistory}
+                />
                 <button
                   onClick={() => {
                     markFeedbackRead();
@@ -426,16 +416,15 @@ const Index = () => {
                       <UserIcon className="w-4 h-4 text-muted-foreground" />{" "}
                       Личный кабинет
                     </button>
-                    <button
+                    <HistoryNavButton
+                      variant="mobile"
+                      totalCount={historyCount}
+                      newCount={historyNewCount}
                       onClick={() => {
-                        navigate("/history");
+                        openHistory();
                         setMobileMenuOpen(false);
                       }}
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors text-sm text-foreground text-left"
-                    >
-                      <History className="w-4 h-4 text-muted-foreground" />{" "}
-                      История
-                    </button>
+                    />
                     <button
                       onClick={() => {
                         markFeedbackRead();
@@ -568,7 +557,7 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {visibleItems.length === 0 && (
+        {!hasQueueVisible && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -602,19 +591,31 @@ const Index = () => {
           </motion.div>
         )}
 
-        {visibleItems.length > 0 && (
+        {hasQueueVisible && (
           <div className="space-y-3">
             <AnimatePresence>
-              {visibleItems.map((item) => (
+              {activeItems.map((item) => (
                 <FileQueueItem
                   key={item.id}
                   item={item}
                   onCancel={() => cancelItem(item.id)}
-                  onRemove={() => removeItem(item.id)}
+                  onRemove={() => dismissQueueItem(item.id)}
                   onRetry={() => retryItem(item.id)}
                   onRenameSpeaker={(orig, newName) =>
                     renameSpeaker(item.id, orig, newName)
                   }
+                />
+              ))}
+              {savedToHistoryItems.map((item) => (
+                <SavedToHistoryCard
+                  key={item.id}
+                  fileName={item.file.name}
+                  segmentCount={item.segments?.length}
+                  onOpenHistory={() => {
+                    dismissQueueItem(item.id);
+                    openHistory();
+                  }}
+                  onDismiss={() => dismissQueueItem(item.id)}
                 />
               ))}
             </AnimatePresence>

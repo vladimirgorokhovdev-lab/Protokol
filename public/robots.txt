@@ -9,7 +9,7 @@ Allow: /
 Disallow: /admin/
 Disallow: /history
 Disallow: /auth
-Host: xn--j1achabchr0f.xn--p1ai
+Host: протоколъ.рф
 
 User-agent: Bingbot
 Allow: /
@@ -27,4 +27,4 @@ Disallow: /admin/
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://xn--j1achabchr0f.xn--p1ai/sitemap.xml
+Sitemap: https://протоколъ.рф/sitemap.xml
