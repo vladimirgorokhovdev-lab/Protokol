@@ -1,11 +1,15 @@
 import { Link } from "react-router-dom";
 import { RotateCcw } from "lucide-react";
 import { resetCacheAndReload } from "@/lib/cacheReset";
+import { CopySiteUrlButton } from "@/components/CopySiteUrlButton";
 
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-card/50 mt-auto">
-      <div className="container max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs text-muted-foreground">
+      <div className="container max-w-6xl mx-auto px-4 py-4 flex flex-col items-center gap-3">
+        <CopySiteUrlButton />
+      </div>
+      <div className="container max-w-6xl mx-auto px-4 pb-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs text-muted-foreground">
         <span>ПротоколЪ · Конфиденциальная обработка аудиоданных</span>
         <span className="hidden sm:inline">·</span>
         <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1">

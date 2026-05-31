@@ -562,7 +562,7 @@ const Index = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.0 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12"
           >
             {[
               {
@@ -576,6 +576,10 @@ const Index = () => {
               {
                 title: "Экспорт",
                 desc: "Скачивание готового протокола в формате .docx",
+              },
+              {
+                title: "Удобное редактирование",
+                desc: "Редактируйте расшифровку по абзацам с одновременным прослушиванием",
               },
             ].map((f, i) => (
               <div

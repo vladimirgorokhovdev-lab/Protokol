@@ -3,9 +3,11 @@ import App from "./App.tsx";
 import "./index.css";
 import { registerServiceWorker } from "./lib/registerSW";
 import { applyPalette, getStoredPalette } from "./lib/palettes";
+import { installClipboardFriendlyUrls } from "./lib/friendlyUrl";
 
 try {
   applyPalette(getStoredPalette());
+  installClipboardFriendlyUrls();
 
   registerServiceWorker();
 
