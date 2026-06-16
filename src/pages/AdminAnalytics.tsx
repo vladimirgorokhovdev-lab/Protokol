@@ -14,6 +14,10 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { SUPPORT_EMAIL } from "@/lib/siteContact";
 import {
   Select,
   SelectContent,
@@ -42,6 +46,8 @@ import {
   Search,
   Download,
   Mail,
+  Send,
+  Loader2,
 } from "lucide-react";
 
 type Overview = {
@@ -197,6 +203,13 @@ const AdminAnalytics = () => {
   const [detailMetric, setDetailMetric] = useState<string | null>(null);
   const [detailItems, setDetailItems] = useState<DetailItem[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [mailOpen, setMailOpen] = useState(false);
+  const [mailSubject, setMailSubject] = useState("");
+  const [mailBody, setMailBody] = useState("");
+  const [sendingMail, setSendingMail] = useState(false);
 
   const openDetails = useCallback(
     async (metric: string) => {
@@ -226,6 +239,7 @@ const AdminAnalytics = () => {
 
   const loadSegment = useCallback(async () => {
     setLoadingSeg(true);
+    setSelectedEmails(new Set());
     const { data, error } = await supabase.rpc("admin_segment_users", {
       p_segment: segment,
     });
@@ -233,6 +247,76 @@ const AdminAnalytics = () => {
     else setSegRows((data as unknown as SegmentRow[]) ?? []);
     setLoadingSeg(false);
   }, [segment]);
+
+  const toggleEmail = (email: string, checked: boolean) => {
+    setSelectedEmails((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(email);
+      else next.delete(email);
+      return next;
+    });
+  };
+
+  const toggleAllEmails = (checked: boolean) => {
+    if (checked) setSelectedEmails(new Set(segRows.map((r) => r.email)));
+    else setSelectedEmails(new Set());
+  };
+
+  const allSelected =
+    segRows.length > 0 && selectedEmails.size === segRows.length;
+
+  const sendBroadcast = async () => {
+    const emails = [...selectedEmails];
+    if (emails.length === 0) {
+      toast.error("Выберите получателей");
+      return;
+    }
+    if (!mailSubject.trim() || !mailBody.trim()) {
+      toast.error("Заполните тему и текст письма");
+      return;
+    }
+    if (emails.length > 50) {
+      toast.error("Не более 50 получателей за раз");
+      return;
+    }
+    setSendingMail(true);
+    const { data, error } = await supabase.functions.invoke("admin-broadcast", {
+      body: {
+        emails,
+        subject: mailSubject.trim(),
+        message: mailBody.trim(),
+      },
+    });
+    setSendingMail(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const result = data as {
+      sent?: number;
+      failed?: number;
+      errors?: Array<{ email: string; error: string }>;
+      from?: string;
+      error?: string;
+    };
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(
+      `Отправлено: ${result.sent ?? 0}${result.failed ? `, ошибок: ${result.failed}` : ""}`,
+    );
+    if (result.from) {
+      toast.message(`Письма ушли с адреса ${result.from}`);
+    }
+    if (result.failed && result.errors?.length) {
+      console.warn("admin-broadcast errors", result.errors);
+    }
+    setMailOpen(false);
+    setMailSubject("");
+    setMailBody("");
+    setSelectedEmails(new Set());
+  };
 
   const loadCard = async () => {
     if (!emailQuery.trim()) return;
@@ -513,6 +597,14 @@ const AdminAnalytics = () => {
                 <Mail className="h-4 w-4 mr-2" /> Скопировать email
               </Button>
               <Button
+                size="sm"
+                onClick={() => setMailOpen(true)}
+                disabled={selectedEmails.size === 0}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Отправить выбранным ({selectedEmails.size})
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={exportCsv}
@@ -533,6 +625,13 @@ const AdminAnalytics = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-xs uppercase">
                     <tr>
+                      <th className="p-3 w-10">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={(v) => toggleAllEmails(v === true)}
+                          aria-label="Выбрать всех"
+                        />
+                      </th>
                       <th className="text-left p-3">Email</th>
                       <th className="text-left p-3">Тариф</th>
                       <th className="text-left p-3">Регистрация</th>
@@ -547,7 +646,7 @@ const AdminAnalytics = () => {
                     {segRows.length === 0 && !loadingSeg && (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={9}
                           className="p-6 text-center text-muted-foreground"
                         >
                           Нет данных
@@ -559,6 +658,15 @@ const AdminAnalytics = () => {
                         key={r.user_id}
                         className="border-t border-border hover:bg-muted/30"
                       >
+                        <td className="p-3">
+                          <Checkbox
+                            checked={selectedEmails.has(r.email)}
+                            onCheckedChange={(v) =>
+                              toggleEmail(r.email, v === true)
+                            }
+                            aria-label={`Выбрать ${r.email}`}
+                          />
+                        </td>
                         <td className="p-3">
                           <button
                             className="text-gold-dark hover:underline"
@@ -595,6 +703,66 @@ const AdminAnalytics = () => {
                 </table>
               </CardContent>
             </Card>
+
+            <Dialog open={mailOpen} onOpenChange={setMailOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Отправить письмо</DialogTitle>
+                  <DialogDescription>
+                    Получателей: {selectedEmails.size} (макс. 50 за раз).
+                    Отправка с{" "}
+                    <span className="font-medium text-foreground">
+                      {SUPPORT_EMAIL}
+                    </span>{" "}
+                    через ваш SMTP.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="broadcast-subject">Тема</Label>
+                    <Input
+                      id="broadcast-subject"
+                      value={mailSubject}
+                      onChange={(e) => setMailSubject(e.target.value)}
+                      placeholder="Например: Обновление сервиса ПротоколЪ"
+                      maxLength={200}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="broadcast-body">Текст письма</Label>
+                    <Textarea
+                      id="broadcast-body"
+                      value={mailBody}
+                      onChange={(e) => setMailBody(e.target.value)}
+                      placeholder="Текст для пользователей…"
+                      rows={8}
+                      maxLength={12000}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Используйте только для сервисных сообщений и ответов
+                    пользователям, согласившимся на обработку данных.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setMailOpen(false)}
+                      disabled={sendingMail}
+                    >
+                      Отмена
+                    </Button>
+                    <Button onClick={sendBroadcast} disabled={sendingMail}>
+                      {sendingMail ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4 mr-2" />
+                      )}
+                      Отправить
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="user" className="space-y-4">

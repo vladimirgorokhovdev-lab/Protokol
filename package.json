@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "deploy:function:contact-send": "npx supabase functions deploy contact-send --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt",
     "deploy:function:auth-send-email": "npx supabase functions deploy auth-send-email --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt",
+    "deploy:function:admin-broadcast": "npx supabase functions deploy admin-broadcast --project-ref cbyzoatcaleeemrjpfek",
     "deploy:functions:all": "npx supabase functions deploy elevenlabs-transcribe --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy elevenlabs-webhook --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt && npx supabase functions deploy ai-summary --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy yookassa-webhook --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy merge-audio --project-ref cbyzoatcaleeemrjpfek && npx supabase functions deploy contact-send --project-ref cbyzoatcaleeemrjpfek --no-verify-jwt"
   },
   "dependencies": {
