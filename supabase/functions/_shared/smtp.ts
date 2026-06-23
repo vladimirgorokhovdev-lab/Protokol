@@ -1,12 +1,19 @@
 import nodemailer from "npm:nodemailer@6.9.10";
 import { SITE_NAME, SUPPORT_EMAIL } from "./siteContact.ts";
 
+export type SmtpAttachment = {
+  filename: string;
+  content: Uint8Array;
+  contentType?: string;
+};
+
 export type SmtpMail = {
   to: string;
   subject: string;
   text: string;
   html: string;
   replyTo?: string;
+  attachments?: SmtpAttachment[];
 };
 
 function smtpTransport() {
@@ -47,6 +54,11 @@ export async function sendSmtpMail(mail: SmtpMail): Promise<void> {
         subject: mail.subject,
         text: mail.text,
         html: mail.html,
+        attachments: mail.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
+        })),
       },
       (error) => {
         if (error) reject(error);

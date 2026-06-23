@@ -6,6 +6,26 @@ import { sendSmtpMail } from "../_shared/smtp.ts";
 const MAX_RECIPIENTS = 50;
 const MAX_SUBJECT = 200;
 const MAX_BODY = 12000;
+const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/octet-stream",
+]);
 
 function isValidEmail(email: string): boolean {
   return (
@@ -24,6 +44,56 @@ function escapeHtml(s: string): string {
 
 function textToHtml(text: string): string {
   return escapeHtml(text).replaceAll("\n", "<br>\n");
+}
+
+function sanitizeFilename(name: string): string {
+  const base = name.replace(/[/\\<>:"|?*\x00-\x1f]/g, "_").trim().slice(0, 200);
+  return base || "attachment";
+}
+
+function decodeBase64Attachment(raw: string): Uint8Array {
+  const cleaned = raw.replace(/\s/g, "");
+  const binary = atob(cleaned);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+type ParsedAttachment = {
+  filename: string;
+  content: Uint8Array;
+  contentType: string;
+};
+
+function parseAttachment(att: unknown): ParsedAttachment | null {
+  if (!att || typeof att !== "object") return null;
+  const record = att as Record<string, unknown>;
+  const filename = sanitizeFilename(String(record.filename ?? "").trim());
+  const contentBase64 = String(record.contentBase64 ?? "").trim();
+  const contentType = String(record.contentType ?? "application/octet-stream")
+    .trim()
+    .toLowerCase();
+
+  if (!contentBase64) return null;
+
+  let content: Uint8Array;
+  try {
+    content = decodeBase64Attachment(contentBase64);
+  } catch {
+    throw new Error("Некорректный файл вложения");
+  }
+
+  if (content.byteLength === 0) {
+    throw new Error("Пустой файл вложения");
+  }
+  if (content.byteLength > MAX_ATTACHMENT_BYTES) {
+    throw new Error(`Вложение не больше ${MAX_ATTACHMENT_BYTES / 1024 / 1024} МБ`);
+  }
+  if (!ALLOWED_ATTACHMENT_TYPES.has(contentType)) {
+    throw new Error("Недопустимый тип файла");
+  }
+
+  return { filename, content, contentType };
 }
 
 async function assertAdmin(
@@ -88,6 +158,20 @@ Deno.serve(async (req) => {
     const subject = String(body?.subject ?? "").trim();
     const message = String(body?.message ?? "").trim();
     const rawEmails = Array.isArray(body?.emails) ? body.emails : [];
+    let attachment: ParsedAttachment | null = null;
+    try {
+      attachment = parseAttachment(body?.attachment);
+    } catch (e) {
+      return new Response(
+        JSON.stringify({
+          error: e instanceof Error ? e.message : "Ошибка вложения",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!subject || subject.length > MAX_SUBJECT) {
       return new Response(
@@ -160,6 +244,15 @@ Deno.serve(async (req) => {
           text: message + textFooter,
           html,
           replyTo: fromEmail,
+          attachments: attachment
+            ? [
+              {
+                filename: attachment.filename,
+                content: attachment.content,
+                contentType: attachment.contentType,
+              },
+            ]
+            : undefined,
         });
         sent++;
       } catch (e) {

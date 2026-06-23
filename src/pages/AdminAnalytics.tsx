@@ -48,7 +48,34 @@ import {
   Mail,
   Send,
   Loader2,
+  Paperclip,
+  X,
 } from "lucide-react";
+
+const MAX_BROADCAST_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Не удалось прочитать файл"));
+        return;
+      }
+      const base64 = result.split(",")[1] ?? "";
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Ошибка чтения файла"));
+    reader.readAsDataURL(file);
+  });
+}
 
 type Overview = {
   period_days: number;
@@ -209,6 +236,7 @@ const AdminAnalytics = () => {
   const [mailOpen, setMailOpen] = useState(false);
   const [mailSubject, setMailSubject] = useState("");
   const [mailBody, setMailBody] = useState("");
+  const [mailAttachment, setMailAttachment] = useState<File | null>(null);
   const [sendingMail, setSendingMail] = useState(false);
 
   const openDetails = useCallback(
@@ -280,42 +308,59 @@ const AdminAnalytics = () => {
       return;
     }
     setSendingMail(true);
-    const { data, error } = await supabase.functions.invoke("admin-broadcast", {
-      body: {
-        emails,
-        subject: mailSubject.trim(),
-        message: mailBody.trim(),
-      },
-    });
-    setSendingMail(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      let attachment:
+        | { filename: string; contentType: string; contentBase64: string }
+        | undefined;
+      if (mailAttachment) {
+        attachment = {
+          filename: mailAttachment.name,
+          contentType: mailAttachment.type || "application/octet-stream",
+          contentBase64: await readFileAsBase64(mailAttachment),
+        };
+      }
+      const { data, error } = await supabase.functions.invoke("admin-broadcast", {
+        body: {
+          emails,
+          subject: mailSubject.trim(),
+          message: mailBody.trim(),
+          attachment,
+        },
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const result = data as {
+        sent?: number;
+        failed?: number;
+        errors?: Array<{ email: string; error: string }>;
+        from?: string;
+        error?: string;
+      };
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        `Отправлено: ${result.sent ?? 0}${result.failed ? `, ошибок: ${result.failed}` : ""}`,
+      );
+      if (result.from) {
+        toast.message(`Письма ушли с адреса ${result.from}`);
+      }
+      if (result.failed && result.errors?.length) {
+        console.warn("admin-broadcast errors", result.errors);
+      }
+      setMailOpen(false);
+      setMailSubject("");
+      setMailBody("");
+      setMailAttachment(null);
+      setSelectedEmails(new Set());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Ошибка отправки");
+    } finally {
+      setSendingMail(false);
     }
-    const result = data as {
-      sent?: number;
-      failed?: number;
-      errors?: Array<{ email: string; error: string }>;
-      from?: string;
-      error?: string;
-    };
-    if (result?.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(
-      `Отправлено: ${result.sent ?? 0}${result.failed ? `, ошибок: ${result.failed}` : ""}`,
-    );
-    if (result.from) {
-      toast.message(`Письма ушли с адреса ${result.from}`);
-    }
-    if (result.failed && result.errors?.length) {
-      console.warn("admin-broadcast errors", result.errors);
-    }
-    setMailOpen(false);
-    setMailSubject("");
-    setMailBody("");
-    setSelectedEmails(new Set());
   };
 
   const loadCard = async () => {
@@ -704,7 +749,13 @@ const AdminAnalytics = () => {
               </CardContent>
             </Card>
 
-            <Dialog open={mailOpen} onOpenChange={setMailOpen}>
+            <Dialog
+              open={mailOpen}
+              onOpenChange={(open) => {
+                setMailOpen(open);
+                if (!open) setMailAttachment(null);
+              }}
+            >
               <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Отправить письмо</DialogTitle>
@@ -738,6 +789,61 @@ const AdminAnalytics = () => {
                       rows={8}
                       maxLength={12000}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="broadcast-attachment">Вложение</Label>
+                    <input
+                      id="broadcast-attachment"
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif,.webp,.zip"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        if (file.size > MAX_BROADCAST_ATTACHMENT_BYTES) {
+                          toast.error("Файл не больше 4 МБ");
+                          return;
+                        }
+                        setMailAttachment(file);
+                      }}
+                    />
+                    {mailAttachment ? (
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                        <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm truncate">{mailAttachment.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(mailAttachment.size)}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() => setMailAttachment(null)}
+                          aria-label="Убрать вложение"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() =>
+                          document.getElementById("broadcast-attachment")?.click()
+                        }
+                      >
+                        <Paperclip className="h-4 w-4 mr-2" />
+                        Прикрепить файл (до 4 МБ)
+                      </Button>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      PDF, Word, Excel, изображения, ZIP, TXT
+                    </p>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Используйте только для сервисных сообщений и ответов
