@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription, TIER_LIMITS } from "@/hooks/useSubscription";
@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Crown, Zap, Shield, ArrowLeft, Loader2, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
+import { openExternalUrl, isNativeApp, closeExternalBrowser } from "@/lib/nativeShell";
+import { nativeAppHref } from "@/lib/appUrl";
 import { toast } from "sonner";
+import { Browser } from "@capacitor/browser";
 
 const plans = [
   {
@@ -93,6 +96,27 @@ export default function Pricing() {
 
   const paymentSuccess = searchParams.get("payment") === "success";
 
+  useEffect(() => {
+    if (!paymentSuccess) return;
+    void subscription.refresh();
+    if (isNativeApp()) {
+      void closeExternalBrowser();
+    }
+  }, [paymentSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let handle: { remove: () => Promise<void> } | undefined;
+    void Browser.addListener("browserFinished", () => {
+      void subscription.refresh();
+    }).then((h) => {
+      handle = h;
+    });
+    return () => {
+      void handle?.remove();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSubscribe = async (tier: "basic" | "pro" | "team") => {
     if (!user) {
       navigate("/auth");
@@ -103,7 +127,7 @@ export default function Pricing() {
     try {
       const url = await subscription.createPayment(tier);
       if (url) {
-        window.location.href = url;
+        await openExternalUrl(url);
       } else {
         toast.error("Не удалось создать платёж. Попробуйте позже.");
       }
@@ -140,10 +164,17 @@ export default function Pricing() {
         </div>
 
         {paymentSuccess && (
-          <div className="mb-8 p-4 rounded-lg bg-muted border border-border text-center">
+          <div className="mb-8 p-4 rounded-lg bg-muted border border-border text-center space-y-3">
             <p className="text-foreground font-medium">
               ✅ Оплата прошла успешно! Ваш тариф обновлён.
             </p>
+            {!isNativeApp() && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={nativeAppHref("pricing?payment=success")}>
+                  Открыть в приложении
+                </a>
+              </Button>
+            )}
           </div>
         )}
 

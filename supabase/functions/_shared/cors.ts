@@ -5,6 +5,14 @@ type CorsOptions = {
 const DEFAULT_ALLOWED_HEADERS =
   "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version";
 
+/** Capacitor / Ionic WebView origins (Android + iOS). */
+const NATIVE_SHELL_ORIGINS = [
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost",
+];
+
 function parseOrigins(raw: string | null | undefined): string[] {
   return String(raw ?? "")
     .split(",")
@@ -14,6 +22,11 @@ function parseOrigins(raw: string | null | undefined): string[] {
 
 function normalizeOrigin(o: string): string {
   return o.replace(/\/+$/, "");
+}
+
+function isNativeShellOrigin(origin: string): boolean {
+  const n = normalizeOrigin(origin);
+  return NATIVE_SHELL_ORIGINS.includes(n);
 }
 
 export function corsHeadersForRequest(req: Request, opts: CorsOptions = {}) {
@@ -28,16 +41,23 @@ export function corsHeadersForRequest(req: Request, opts: CorsOptions = {}) {
       )
         .concat(parseOrigins(Deno.env.get("SUPABASE_ALLOWED_ORIGINS")))
         .concat(parseOrigins(Deno.env.get("SITE_URL")))
+        .concat(NATIVE_SHELL_ORIGINS)
         .map(normalizeOrigin),
     ),
   );
 
   const normalizedOrigin = normalizeOrigin(origin);
   const isAllowed =
-    normalizedOrigin && allowedOrigins.includes(normalizedOrigin);
+    !!normalizedOrigin &&
+    (allowedOrigins.includes(normalizedOrigin) ||
+      isNativeShellOrigin(normalizedOrigin));
 
   const allowOrigin =
-    allowedOrigins.length === 0 ? "*" : isAllowed ? normalizedOrigin : "null";
+    allowedOrigins.length === 0
+      ? "*"
+      : isAllowed
+        ? normalizedOrigin
+        : "null";
 
   return {
     "Access-Control-Allow-Origin": allowOrigin,

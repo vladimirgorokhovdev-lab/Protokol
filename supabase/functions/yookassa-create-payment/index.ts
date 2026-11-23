@@ -72,12 +72,14 @@ Deno.serve(async (req) => {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const rawOrigin = req.headers.get("origin") || "";
-    const returnUrl = allowedOrigins.includes(rawOrigin)
-      ? rawOrigin
-      : Deno.env.get("SITE_URL") ||
-        allowedOrigins[0] ||
-        "https://xn--j1achabchr0f.xn--p1ai";
+    const siteUrl = (
+      Deno.env.get("SITE_URL") ||
+      allowedOrigins[0] ||
+      "https://xn--j1achabchr0f.xn--p1ai"
+    ).replace(/\/+$/, "");
+    // Always return to the public https site (not capacitor://localhost).
+    // Native app users reopen via deep link / «Открыть в приложении».
+    const returnUrl = siteUrl;
 
     const paymentBody = {
       amount: {

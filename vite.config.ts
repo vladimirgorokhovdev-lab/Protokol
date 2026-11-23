@@ -5,6 +5,9 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Relative asset paths required for Capacitor (file:// / capacitor://).
+  // GitHub Pages sets VITE_BASE_PATH to /<repo>/ so routes and assets match the project site.
+  base: process.env.VITE_BASE_PATH || "./",
   define: {
     __BUILD_VERSION__: JSON.stringify(new Date().toISOString()),
   },

@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Capacitor — local IDE / build junk (commit ios/ android/ project folders)
+ios/App/Pods
+ios/App/Podfile.lock
+ios/DerivedData
+android/.gradle
+android/app/build
+android/build
+android/local.properties
+*.keystore
+*.jks
+
 # Env files (keep only examples in repo)
 .env
 .env.*

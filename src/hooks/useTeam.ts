@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { TIER_LIMITS } from "@/lib/tierLimits";
+import { TIER_LIMITS, DEFAULT_TEAM_MAX_MEMBERS } from "@/lib/tierLimits";
 import { useAuth } from "@/contexts/AuthContext";
 
 export interface TeamMember {
@@ -23,6 +23,7 @@ export interface TeamInfo {
   id: string;
   name: string;
   owner_id: string;
+  max_members: number;
 }
 
 export interface UseTeamResult {
@@ -33,6 +34,7 @@ export interface UseTeamResult {
   monthlyUsed: number;
   monthlySecondsUsed: number;
   monthlyHoursLimit: number;
+  memberLimit: number;
   loading: boolean;
   refresh: () => Promise<void>;
   inviteMember: (email: string) => Promise<{ token?: string; error?: string }>;
@@ -58,7 +60,10 @@ function humanizeError(
     return "Этот пользователь уже состоит в команде.";
   if (/уже существует/i.test(msg))
     return "Активное приглашение для этого email уже существует.";
-  if (/лимит 5/i.test(msg)) return "Достигнут лимит 5 участников команды.";
+  if (/лимит \d+ участников|лимит 5/i.test(msg))
+    return msg.includes("участник")
+      ? msg
+      : "Достигнут лимит участников команды.";
   if (/приглашение не найдено|истекло/i.test(msg))
     return "Приглашение недействительно или истекло.";
   if (/другой email/i.test(msg))
@@ -76,6 +81,7 @@ export function useTeam(): UseTeamResult {
   const [monthlySecondsUsed, setMonthlySecondsUsed] = useState(0);
   const monthlyHoursLimit = TIER_LIMITS.team.monthlyHours ?? 100;
   const [loading, setLoading] = useState(true);
+  const memberLimit = team?.max_members ?? DEFAULT_TEAM_MAX_MEMBERS;
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -114,7 +120,7 @@ export function useTeam(): UseTeamResult {
         await Promise.all([
           supabase
             .from("teams")
-            .select("id, name, owner_id")
+            .select("id, name, owner_id, max_members")
             .eq("id", myMembership.team_id)
             .maybeSingle(),
           supabase
@@ -129,7 +135,16 @@ export function useTeam(): UseTeamResult {
             .maybeSingle(),
         ]);
 
-      setTeam(teamData ?? null);
+      setTeam(
+        teamData
+          ? {
+              id: teamData.id,
+              name: teamData.name,
+              owner_id: teamData.owner_id,
+              max_members: teamData.max_members ?? DEFAULT_TEAM_MAX_MEMBERS,
+            }
+          : null,
+      );
       setMembers((memberRows as TeamMember[]) ?? []);
 
       const currentMonth = new Date().toISOString().slice(0, 7);
@@ -288,6 +303,7 @@ export function useTeam(): UseTeamResult {
     monthlyUsed,
     monthlySecondsUsed,
     monthlyHoursLimit,
+    memberLimit,
     loading,
     refresh,
     inviteMember,

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isEmailConfirmed } from "@/lib/authEmail";
 import { toast } from "sonner";
+import { publicAppHref } from "@/lib/appUrl";
 
 export function EmailVerificationBanner() {
   const { user } = useAuth();
@@ -22,7 +23,7 @@ export function EmailVerificationBanner() {
       type: "signup",
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
+        emailRedirectTo: publicAppHref("/auth"),
       },
     });
     setSending(false);

@@ -33,6 +33,9 @@ import TeamJoin from "./pages/TeamJoin.tsx";
 import ApprovalGate from "./components/ApprovalGate.tsx";
 import { useStaleSessionRecovery } from "./hooks/useStaleSessionRecovery";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { setNativeOpenHandler } from "./lib/nativeShell";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +52,25 @@ const SessionRecovery = () => {
   return null;
 };
 
+/** Deep links: protokol://pricing?payment=success → /pricing?payment=success */
+const NativeDeepLinkBridge = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    setNativeOpenHandler((path) => {
+      navigate(path);
+    });
+    return () => setNativeOpenHandler(null);
+  }, [navigate]);
+  return null;
+};
+
+/** Project Pages live under /repo/. Capacitor and local dev stay at the domain root. */
+function routerBasename(): string | undefined {
+  const base = import.meta.env.BASE_URL;
+  if (!base || base === "/" || base === "./") return undefined;
+  return base.endsWith("/") ? base.slice(0, -1) : base;
+}
+
 const App = () => (
   <AppErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -64,7 +86,8 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <BrowserRouter>
+              <BrowserRouter basename={routerBasename()}>
+                <NativeDeepLinkBridge />
                 <ApprovalGate>
                   <Routes>
                     <Route path="/" element={<Index />} />

@@ -28,6 +28,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/MobileNav";
 import { TeamActivityLog } from "@/components/team/TeamActivityLog";
 import { toast } from "sonner";
+import { publicAppHref } from "@/lib/appUrl";
 
 const emailSchema = z
   .string()
@@ -96,7 +97,7 @@ export default function Team() {
   }
 
   const isOwner = team.role === "owner";
-  const memberLimit = 5;
+  const memberLimit = team.memberLimit;
   const slotsLeft = memberLimit - team.members.length - team.invitations.length;
 
   const showErrorWithRetry = (
@@ -146,8 +147,7 @@ export default function Team() {
     }
     if (slotsLeft <= 0) {
       toast.error("Лимит участников исчерпан", {
-        description:
-          "В команде уже 5 участников (с учётом активных приглашений). Удалите кого-то или отзовите приглашение.",
+        description: `В команде уже ${memberLimit} участников (с учётом активных приглашений). Удалите кого-то или отзовите приглашение.`,
       });
       return;
     }
@@ -155,7 +155,7 @@ export default function Team() {
     const result = await team.inviteMember(parsed.data);
     setInviting(false);
     if (result.token) {
-      const link = `${window.location.origin}/team/join?token=${result.token}`;
+      const link = publicAppHref(`/team/join?token=${result.token}`);
       navigator.clipboard.writeText(link).catch(() => {});
       toast.success("Приглашение создано", {
         description:
@@ -172,7 +172,7 @@ export default function Team() {
   };
 
   const handleCopyLink = (token: string) => {
-    const link = `${window.location.origin}/team/join?token=${token}`;
+    const link = publicAppHref(`/team/join?token=${token}`);
     navigator.clipboard.writeText(link).then(() => {
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(null), 2000);
@@ -389,8 +389,8 @@ export default function Team() {
               </div>
               {slotsLeft <= 0 && (
                 <p className="text-xs text-destructive">
-                  Достигнут лимит 5 участников. Удалите кого-то или отзовите
-                  приглашение.
+                  Достигнут лимит {memberLimit} участников. Удалите кого-то или
+                  отзовите приглашение.
                 </p>
               )}
 

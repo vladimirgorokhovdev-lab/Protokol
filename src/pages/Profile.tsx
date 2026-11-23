@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
+import { publicAppHref } from "@/lib/appUrl";
 
 const nameSchema = z
   .string()
@@ -108,7 +109,7 @@ export default function Profile() {
     setSavingEmail(true);
     const { error } = await supabase.auth.updateUser(
       { email: parsed.data },
-      { emailRedirectTo: `${window.location.origin}/account/profile` }
+      { emailRedirectTo: publicAppHref("/account/profile") }
     );
     setSavingEmail(false);
     if (error) {

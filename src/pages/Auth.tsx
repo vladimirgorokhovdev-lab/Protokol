@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { isEmailConfirmed } from "@/lib/authEmail";
 import { EmailOtpForm } from "@/components/EmailOtpForm";
+import { publicAppHref } from "@/lib/appUrl";
 
 const PENDING_CONFIRM_KEY = "pending_confirm_email";
 
@@ -60,7 +61,7 @@ const Auth = () => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: addr,
-      options: { emailRedirectTo: `${window.location.origin}/auth` },
+      options: { emailRedirectTo: `${publicAppHref("/auth")}` },
     });
     if (error) {
       toast({
@@ -116,7 +117,7 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth`,
+            emailRedirectTo: `${publicAppHref("/auth")}`,
           },
         });
         if (error) throw error;
@@ -151,7 +152,7 @@ const Auth = () => {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth`,
+        redirectTo: `${publicAppHref("/auth")}`,
       });
       if (error) throw error;
       toast({

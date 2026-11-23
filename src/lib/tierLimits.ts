@@ -1,3 +1,8 @@
+/** Default B2C Team seats (owner + members). */
+export const DEFAULT_TEAM_MAX_MEMBERS = 5;
+/** Court / B2B package seats — set on teams.max_members when provisioning. */
+export const COURT_TEAM_MAX_MEMBERS = 30;
+
 export const TIER_LIMITS = {
   free: {
     total: 1,
@@ -36,6 +41,8 @@ export const TIER_LIMITS = {
     /** Shared audio pool for the whole team. */
     maxAudioStorageGb: 50,
     audioRetentionDays: 90,
+    /** Default seats; override per team via teams.max_members (court = 30). */
+    maxMembers: DEFAULT_TEAM_MAX_MEMBERS,
     label: "Команда",
   },
 } as const;

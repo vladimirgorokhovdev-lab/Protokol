@@ -539,7 +539,7 @@ export default function Account() {
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Участников</p>
-                  <p className="font-medium text-foreground">{team.members.length} / 5</p>
+                  <p className="font-medium text-foreground">{team.members.length} / {team.memberLimit}</p>
                 </div>
               </div>
 

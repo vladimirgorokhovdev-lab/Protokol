@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ПротоколЪ</string>
+    <string name="title_activity_main">ПротоколЪ</string>
+    <string name="package_name">ru.protokol.app</string>
+    <string name="custom_url_scheme">ru.protokol.app</string>
+</resources>
