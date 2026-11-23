@@ -30,7 +30,7 @@ jobs:
       - name: Production build
         run: npm run build
         env:
-          VITE_BASE_PATH: /Protokol/
+          VITE_BASE_PATH: /
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
